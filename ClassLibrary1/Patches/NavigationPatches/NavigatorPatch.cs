@@ -64,6 +64,10 @@ namespace ONI_MP.Patches.Navigation
 			if (!__instance.TryGetComponent<KPrefabID>(out var prefabId) || !prefabId.HasTag(GameTags.BaseMinion))
 				return;
 
+			var activeTransition = __instance.transitionDriver.GetTransition;
+			if (activeTransition == null)
+				return;
+
 			var packet = new NavigatorTransitionPacket
 			{
 				NetId = identity.NetId,
@@ -71,12 +75,11 @@ namespace ONI_MP.Patches.Navigation
 				SourcePosition = __instance.transform.GetPosition(),
 				TransitionX = (sbyte)transition.x,
 				TransitionY = (sbyte)transition.y,
-				Speed = __instance.defaultSpeed,
-				AnimSpeed = transition.animSpeed,
+				Speed = activeTransition.speed,
+				AnimSpeed = activeTransition.animSpeed,
 				Anim = transition.anim,
 				PreAnim = transition.preAnim,
 				IsLooping = transition.isLooping,
-				UseXOffset = transition.useXOffset,
 				StartNavType = (byte)transition.start,
 				EndNavType = (byte)transition.end
 			};
@@ -104,6 +107,9 @@ namespace ONI_MP.Patches.Navigation
 			if (!__instance.TryGetComponent<KPrefabID>(out var prefabId) || !prefabId.HasTag(GameTags.BaseMinion))
 				return;
 
+			if (!play_idle)
+				return;
+
 			var packet = new NavigatorTransitionPacket
 			{
 				NetId = identity.NetId,
@@ -111,7 +117,7 @@ namespace ONI_MP.Patches.Navigation
 				EndNavType = (byte)__instance.CurrentNavType
 			};
 
-			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
 		}
 	}
 }

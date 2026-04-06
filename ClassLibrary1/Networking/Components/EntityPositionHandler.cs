@@ -113,8 +113,11 @@ namespace ONI_MP.Networking.Components
             if (HasDuplicantController)
             {
                 duplicantController.OnPositionCorrection(serverPosition);
-                kbac.FlipX = serverFlipX;
-                kbac.FlipY = serverFlipY;
+                if (!duplicantController.IsMoving)
+                {
+                    kbac.FlipX = serverFlipX;
+                    kbac.FlipY = serverFlipY;
+                }
                 return;
             }
 

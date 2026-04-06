@@ -19,7 +19,6 @@ namespace ONI_MP.Networking.Packets.Core
 		public string Anim;
 		public string PreAnim;
 		public bool IsLooping;
-		public bool UseXOffset;
 		public byte StartNavType;
 		public byte EndNavType;
 
@@ -44,7 +43,6 @@ namespace ONI_MP.Networking.Packets.Core
 			writer.Write(Anim ?? "");
 			writer.Write(PreAnim ?? "");
 			writer.Write(IsLooping);
-			writer.Write(UseXOffset);
 			writer.Write(StartNavType);
 			writer.Write(EndNavType);
 		}
@@ -70,7 +68,6 @@ namespace ONI_MP.Networking.Packets.Core
 			Anim = reader.ReadString();
 			PreAnim = reader.ReadString();
 			IsLooping = reader.ReadBoolean();
-			UseXOffset = reader.ReadBoolean();
 			StartNavType = reader.ReadByte();
 			EndNavType = reader.ReadByte();
 		}
