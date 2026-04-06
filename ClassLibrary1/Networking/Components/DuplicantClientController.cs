@@ -1,4 +1,3 @@
-using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Core;
 using ONI_MP.Networking.Packets.DuplicantActions;
 using Shared.Profiling;
@@ -11,19 +10,33 @@ namespace ONI_MP.Networking.Components
 	{
 		[MyCmpGet] private Navigator navigator;
 		[MyCmpGet] private KBatchedAnimController animController;
+		[MyCmpGet] private Facing facing;
 
-		private bool isTransitioning;
+		public bool IsMoving { get; private set; }
 
 		private readonly Queue<NavigatorTransitionPacket> buffer = new Queue<NavigatorTransitionPacket>(16);
-		private const int MaxBufferSize = 16; // You limit the buffer size to 10 here but initialize it at 16 above
+		private const int MaxBufferSize = 16;
 		private const float BufferTargetDelay = 0.08f;
 		private bool receivedFirstPacket;
 		private float firstPacketTime;
 		private bool playbackStarted;
 
 		private const float CorrectionSnapDistance = 3;
+		private const float FallbackMoveSpeed = 3f;
 		private NavType stopNavType;
 		private bool pendingStop;
+
+		private bool isTransitioning;
+		private Vector3 moveStart;
+		private Vector3 moveTarget;
+		private float moveSpeed;
+		private bool isLooping;
+		private byte endNavType;
+		private Vector3 moveDirection;
+		private float moveTotalDist;
+		private int animCompleteHandle = -1;
+		private bool animFinished;
+		private Vector3 controlledPosition;
 
 		public override void OnSpawn()
 		{
@@ -41,6 +54,10 @@ namespace ONI_MP.Networking.Components
 				enabled = false;
 				return;
 			}
+
+			controlledPosition = transform.GetPosition();
+
+			navigator.transitionDriver?.EndTransition();
 		}
 
 		private void Update()
@@ -50,34 +67,68 @@ namespace ONI_MP.Networking.Components
 			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
 				return;
 
-			if(navigator == null || navigator.transitionDriver == null)
-                return;
-
 			if (isTransitioning)
-			{
-				navigator.transitionDriver.UpdateTransition(Time.deltaTime);
+				UpdateMovement();
+			else
+				TryDequeueAndPlay();
+		}
 
-                // Why not just set isTransitioning here to "navigator.transitionDriver.GetTransition != null"?
-                if (navigator.transitionDriver.GetTransition == null)
+		private void UpdateMovement()
+		{
+			using var _ = Profiler.Scope();
+
+			if (isLooping)
+			{
+				Vector3 pos = controlledPosition + moveDirection * moveSpeed * Time.deltaTime;
+				float traveled = Vector3.Distance(moveStart, pos);
+
+				if (traveled >= moveTotalDist)
 				{
-					isTransitioning = false;
+					FinishTransition();
+				}
+				else
+				{
+					controlledPosition = pos;
+					transform.SetPosition(controlledPosition);
 				}
 			}
 			else
 			{
-				// Not transitioning
-                TryDequeueAndPlay();
-            }
+				if (animFinished)
+					FinishTransition();
+			}
+		}
+
+		private void FinishTransition()
+		{
+			using var _ = Profiler.Scope();
+
+			controlledPosition = moveTarget;
+			transform.SetPosition(controlledPosition);
+			navigator.SetCurrentNavType((NavType)endNavType);
+			isTransitioning = false;
+
+			if (animCompleteHandle != -1)
+			{
+				animController.gameObject.Unsubscribe(animCompleteHandle);
+				animCompleteHandle = -1;
+			}
+
+			if (pendingStop)
+				ApplyStop();
+			else
+				TryDequeueAndPlay();
 		}
 
 		public void OnTransitionReceived(NavigatorTransitionPacket packet)
 		{
 			using var _ = Profiler.Scope();
 
-			if (navigator == null || navigator.transitionDriver == null)
+			if (navigator == null || animController == null)
 				return;
 
 			pendingStop = false;
+			IsMoving = true;
 
 			if (!receivedFirstPacket)
 			{
@@ -89,7 +140,10 @@ namespace ONI_MP.Networking.Components
 			{
 				buffer.Clear();
 				playbackStarted = true;
-				PlayTransition(packet);
+				controlledPosition = packet.SourcePosition + new Vector3(packet.TransitionX, packet.TransitionY, 0f);
+				transform.SetPosition(controlledPosition);
+				navigator.SetCurrentNavType((NavType)packet.EndNavType);
+				isTransitioning = false;
 				return;
 			}
 
@@ -103,9 +157,7 @@ namespace ONI_MP.Networking.Components
 			if (buffer.Count == 0)
 			{
 				if (pendingStop)
-				{
 					ApplyStop();
-				}
 				return;
 			}
 
@@ -118,6 +170,16 @@ namespace ONI_MP.Networking.Components
 				playbackStarted = true;
 			}
 
+			if (buffer.Count > 3)
+			{
+				while (buffer.Count > 1)
+				{
+					var skip = buffer.Dequeue();
+					controlledPosition = skip.SourcePosition + new Vector3(skip.TransitionX, skip.TransitionY, 0f);
+				}
+				transform.SetPosition(controlledPosition);
+			}
+
 			PlayTransition(buffer.Dequeue());
 		}
 
@@ -125,41 +187,66 @@ namespace ONI_MP.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-            if (isTransitioning)
+			if (animCompleteHandle != -1)
 			{
-				navigator.transitionDriver.EndTransition();
+				animController.gameObject.Unsubscribe(animCompleteHandle);
+				animCompleteHandle = -1;
 			}
 
-			float drift = Vector3.Distance(transform.position, packet.SourcePosition);
-			if (drift > 0.15f)
-			{
-				transform.SetPosition(packet.SourcePosition);
-			}
+			controlledPosition = packet.SourcePosition;
+			transform.SetPosition(controlledPosition);
+
+			moveStart = controlledPosition;
+			var delta = new Vector3(packet.TransitionX, packet.TransitionY, 0f);
+			moveTarget = moveStart + delta;
+			moveTotalDist = delta.magnitude;
+			moveDirection = delta / moveTotalDist;
+			moveSpeed = packet.Speed > 0f ? packet.Speed : FallbackMoveSpeed;
+			isLooping = packet.IsLooping;
+			endNavType = packet.EndNavType;
+			animFinished = false;
 
 			navigator.SetCurrentNavType((NavType)packet.StartNavType);
 
-			navigator.transitionDriver.BeginTransition(
-				navigator,
-				new NavGrid.Transition
-				{
-					x = packet.TransitionX,
-					y = packet.TransitionY,
-					isLooping = packet.IsLooping,
-					useXOffset = packet.UseXOffset,
-					start = (NavType)packet.StartNavType,
-					end = (NavType)packet.EndNavType,
-					anim = packet.Anim,
-					preAnim = packet.PreAnim,
-					animSpeed = packet.AnimSpeed,
-					voidOffsets = System.Array.Empty<CellOffset>(),
-					solidOffsets = System.Array.Empty<CellOffset>(),
-					validNavOffsets = System.Array.Empty<NavOffset>(),
-					invalidNavOffsets = System.Array.Empty<NavOffset>()
-				},
-				packet.Speed
-			);
+			if (packet.TransitionX != 0 && facing != null)
+				facing.SetFacing(packet.TransitionX < 0);
 
-			isTransitioning = navigator.transitionDriver.GetTransition != null;
+			if (isLooping)
+			{
+				HashedString anim = packet.Anim;
+				if (anim.IsValid)
+				{
+					animController.PlaySpeedMultiplier = packet.AnimSpeed;
+					animController.Play(anim, KAnim.PlayMode.Loop);
+				}
+			}
+			else
+			{
+				HashedString preAnim = packet.PreAnim;
+				HashedString anim = packet.Anim;
+
+				if (preAnim.IsValid)
+				{
+					animController.Play(preAnim, KAnim.PlayMode.Once);
+					if (anim.IsValid)
+						animController.Queue(anim, KAnim.PlayMode.Once);
+				}
+				else if (anim.IsValid)
+				{
+					animController.Play(anim, KAnim.PlayMode.Once);
+				}
+
+				animController.PlaySpeedMultiplier = packet.AnimSpeed;
+				animCompleteHandle = animController.gameObject.Subscribe((int)GameHashes.AnimQueueComplete, OnAnimComplete);
+			}
+
+			isTransitioning = true;
+		}
+
+		private void OnAnimComplete(object data)
+		{
+			using var _ = Profiler.Scope();
+			animFinished = true;
 		}
 
 		public void OnStopReceived(NavType navType)
@@ -174,9 +261,7 @@ namespace ONI_MP.Networking.Components
 			buffer.Clear();
 
 			if (!isTransitioning)
-			{
 				ApplyStop();
-			}
 		}
 
 		private void ApplyStop()
@@ -184,33 +269,34 @@ namespace ONI_MP.Networking.Components
 			using var _ = Profiler.Scope();
 
 			pendingStop = false;
+			IsMoving = false;
+			isTransitioning = false;
 
-			if (isTransitioning)
+			if (animCompleteHandle != -1)
 			{
-				navigator.transitionDriver.EndTransition();
-				isTransitioning = false;
+				animController.gameObject.Unsubscribe(animCompleteHandle);
+				animCompleteHandle = -1;
 			}
 
 			navigator.SetCurrentNavType(stopNavType);
 
 			HashedString idleAnim = navigator.NavGrid.GetIdleAnim(stopNavType);
-			if (animController != null)
-			{
-				animController.Play(idleAnim, KAnim.PlayMode.Loop);
-			}
+			animController.PlaySpeedMultiplier = 1f;
+			animController.Play(idleAnim, KAnim.PlayMode.Loop);
 		}
 
 		public void OnPositionCorrection(Vector3 serverPosition)
 		{
 			using var _ = Profiler.Scope();
 
-			if (isTransitioning)
+			if (isTransitioning || IsMoving)
 				return;
 
-			float error = Vector3.Distance(transform.position, serverPosition);
+			float error = Vector3.Distance(controlledPosition, serverPosition);
 			if (error > CorrectionSnapDistance)
 			{
-				transform.SetPosition(serverPosition);
+				controlledPosition = serverPosition;
+				transform.SetPosition(controlledPosition);
 			}
 		}
 
