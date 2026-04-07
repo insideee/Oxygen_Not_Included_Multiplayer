@@ -1,5 +1,7 @@
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Synchronization;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
@@ -68,9 +70,9 @@ namespace ONI_MP.Networking.Packets.World
 						{
 							DiscoveredResources.Instance.Discover(tag);
 						}
-						catch
+						catch (Exception ex)
 						{
-							// Ignore specific discovery failures
+							DebugConsole.LogError($"[ResourceCountPacket] Error discovering resource: {ex}");
 						}
 					}
 				}

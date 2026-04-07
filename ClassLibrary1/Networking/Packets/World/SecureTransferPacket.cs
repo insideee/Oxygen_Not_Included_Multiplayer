@@ -58,7 +58,7 @@ namespace ONI_MP.Networking.Packets.World
             catch (Exception ex)
             {
                 // CORRUPTION DETECTED: Deserialization failed = missing or corrupted bytes
-                DebugConsole.LogError($"[SecureTransfer] ❌ Packet {SequenceNumber} CORRUPTED - deserialization failed: {ex.Message}");
+                DebugConsole.LogError($"[SecureTransfer] Packet {SequenceNumber} CORRUPTED - deserialization failed: {ex}");
 
                 // Request re-send of this specific packet
                 RequestPacketResend(SequenceNumber, TransferId);

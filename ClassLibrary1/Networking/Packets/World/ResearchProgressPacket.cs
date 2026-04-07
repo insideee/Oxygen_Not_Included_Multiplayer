@@ -79,11 +79,11 @@ namespace ONI_MP.Networking.Packets.World
 							.GetValue();
 					}
 				}
-				catch { }
+				catch (System.Exception ex) { DebugConsole.LogError($"[ResearchProgressPacket] Error refreshing research screen: {ex}"); }
 			}
 			catch (System.Exception ex)
 			{
-				DebugConsole.LogWarning($"[ResearchProgressPacket] Failed to set progress: {ex.Message}");
+				DebugConsole.LogWarning($"[ResearchProgressPacket] Failed to set progress: {ex}");
 			}
 		}
 	}

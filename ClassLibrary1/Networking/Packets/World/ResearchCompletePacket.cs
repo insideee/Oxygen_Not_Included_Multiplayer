@@ -54,7 +54,7 @@ namespace ONI_MP.Networking.Packets.World
 				{
 					Game.Instance?.Trigger((int)GameHashes.ResearchComplete, tech);
 				}
-				catch { }
+				catch (Exception ex) { DebugConsole.LogError($"[ResearchCompletePacket] Error triggering ResearchComplete: {ex}"); }
 
 				// Refresh the research screen if open
 				try
@@ -75,11 +75,11 @@ namespace ONI_MP.Networking.Packets.World
 							.GetValue(null);
 					}
 				}
-				catch { }
+				catch (Exception ex) { DebugConsole.LogError($"[ResearchCompletePacket] Error refreshing research screen: {ex}"); }
 			}
 			catch (Exception ex)
 			{
-				DebugConsole.LogError($"[ResearchCompletePacket] Failed to complete research: {ex.Message}");
+				DebugConsole.LogError($"[ResearchCompletePacket] Failed to complete research: {ex}");
 			}
 		}
 	}

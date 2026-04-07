@@ -71,7 +71,7 @@ namespace ONI_MP.Networking.Packets.World
 			}
 			catch (System.Exception ex)
 			{
-				DebugConsole.LogError($"[EntitySpawnPacket] Failed to spawn: {ex.Message}");
+				DebugConsole.LogError($"[EntitySpawnPacket] Failed to spawn: {ex}");
 			}
 		}
 	}

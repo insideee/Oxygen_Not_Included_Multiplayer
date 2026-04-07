@@ -66,7 +66,7 @@ namespace ONI_MP.Networking.Packets.Social
 							Immigration.Instance.EndImmigration();
 						}
 					}
-					catch { }
+					catch (System.Exception ex) { DebugConsole.LogError($"[ImmigrantSelectionPacket] Error ending immigration: {ex}"); }
 				}
 				return;
 			}
@@ -145,7 +145,7 @@ namespace ONI_MP.Networking.Packets.Social
 				}
 				catch (System.Exception ex)
 				{
-					DebugConsole.LogError($"[ImmigrantSelectionPacket] Failed to spawn: {ex.Message}");
+					DebugConsole.LogError($"[ImmigrantSelectionPacket] Failed to spawn: {ex}");
 				}
 
 
