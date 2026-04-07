@@ -11,7 +11,7 @@ namespace ONI_MP.Networking.Packets.Architecture
 	public static class PacketHandler
 	{
 		private static bool _readyToProcess = true;
-		private static float _notReadySince = 0f;
+		private static float _notReadySince = float.MaxValue;
 		private const float NOT_READY_TIMEOUT = 60f;
 
 		public static bool readyToProcess
