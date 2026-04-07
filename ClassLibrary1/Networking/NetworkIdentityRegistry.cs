@@ -12,6 +12,11 @@ namespace ONI_MP.Networking
 		private static readonly Dictionary<int, NetworkIdentity> identities = new Dictionary<int, NetworkIdentity>();
 		private static readonly System.Random rng = new System.Random();
 
+		private static int _lookupFailCount = 0;
+		private static float _lastFailLogTime = 0f;
+
+		public static int Count => identities?.Count ?? 0;
+
 		public static int Register(NetworkIdentity entity)
 		{
 			using var _ = Profiler.Scope();
@@ -75,7 +80,12 @@ namespace ONI_MP.Networking
 			bool found = identities.TryGetValue(netId, out entity);
 			if (!found)
 			{
-				DebugConsole.LogWarning($"[NetEntityRegistry] ERROR: Requested NetId {netId} NOT FOUND in registry. Current count: {identities.Count}");
+				_lookupFailCount++;
+				if (_lookupFailCount <= 3 || _lookupFailCount % 500 == 0 || Time.unscaledTime - _lastFailLogTime > 1f)
+				{
+					_lastFailLogTime = Time.unscaledTime;
+					DebugConsole.LogWarning($"[Registry] Lookup failed (#{_lookupFailCount}): NetId {netId} not found. Count: {identities.Count}");
+				}
 			}
 			return found;
 		}
@@ -106,6 +116,7 @@ namespace ONI_MP.Networking
 			using var _ = Profiler.Scope();
 
 			identities.Clear();
+			_lookupFailCount = 0;
 		}
 
 		public static IEnumerable<NetworkIdentity> AllIdentities => identities.Values;

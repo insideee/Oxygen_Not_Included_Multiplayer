@@ -118,6 +118,7 @@ namespace ONI_MP.Networking.Components
 
 		// Cached reflection field
 		private static System.Reflection.FieldInfo _batteryJoulesField;
+		private static bool _batteryFieldLookupAttempted = false;
 
 		// Static handler for client-side reception
 		public static void HandlePacket(StructureStatePacket packet)
@@ -136,9 +137,10 @@ namespace ONI_MP.Networking.Components
 				// JoulesAvailable is read-only, set backing field via reflection
 				try
 				{
-					if (_batteryJoulesField == null)
+					if (_batteryJoulesField == null && !_batteryFieldLookupAttempted)
 					{
-						_batteryJoulesField = typeof(Battery).GetField("joulesAvailable", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+						_batteryFieldLookupAttempted = true;
+						_batteryJoulesField = typeof(Battery).GetField("joulesAvailable", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 					}
 					if (_batteryJoulesField != null)
 					{

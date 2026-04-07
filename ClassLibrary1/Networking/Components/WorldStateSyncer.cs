@@ -34,6 +34,28 @@ namespace ONI_MP.Networking.Components
 		private ushort[] _shadowElements;
 		private float[] _shadowMass;
 
+		// Rotating background scan - covers off-screen areas
+		private const int BG_SCAN_CHUNK_SIZE = 32;
+		private int _bgScanIndex = 0;
+
+		// Pinned areas - always synced regardless of viewport
+		private static readonly List<RectInt> _pinnedAreas = new List<RectInt>();
+
+		public static void PinArea(int x, int y, int width, int height)
+		{
+			_pinnedAreas.Add(new RectInt(x, y, width, height));
+		}
+
+		public static void UnpinArea(int x, int y, int width, int height)
+		{
+			_pinnedAreas.RemoveAll(r => r.x == x && r.y == y && r.width == width && r.height == height);
+		}
+
+		public static void ClearPinnedAreas()
+		{
+			_pinnedAreas.Clear();
+		}
+
 		private readonly Dictionary<ulong, RectInt> _clientViewports = new Dictionary<ulong, RectInt>();
 
 		private void Awake()
@@ -83,9 +105,8 @@ namespace ONI_MP.Networking.Components
 
 			try
 			{
-				// Adaptive gas sync - double interval if FPS is low
-				float fps = 1f / Time.unscaledDeltaTime;
-				_effectiveGasInterval = fps < 30 ? 3f : GAS_SYNC_INTERVAL;
+				// Adaptive gas sync based on FPS and client count
+				_effectiveGasInterval = GAS_SYNC_INTERVAL * GetSyncMultiplier();
 
 				if (Time.unscaledTime - _lastGasSyncTime > _effectiveGasInterval)
 				{
@@ -602,11 +623,62 @@ namespace ONI_MP.Networking.Components
 				ScanArea(x1, y1, x2, y2);
 			}
 
+			// Scan pinned areas
+			foreach (var rect in _pinnedAreas)
+			{
+				int px1 = Mathf.Max(0, rect.xMin);
+				int py1 = Mathf.Max(0, rect.yMin);
+				int px2 = Mathf.Min(Grid.WidthInCells, rect.xMax);
+				int py2 = Mathf.Min(Grid.HeightInCells, rect.yMax);
+				cellsScanned += (px2 - px1) * (py2 - py1);
+				ScanArea(px1, py1, px2, py2);
+			}
+
+			// Rotating background scan - covers entire map over ~30 seconds
+			if (_shadowElements != null)
+			{
+				int totalCells = Grid.CellCount;
+				int totalChunks = Mathf.CeilToInt((float)totalCells / (BG_SCAN_CHUNK_SIZE * BG_SCAN_CHUNK_SIZE));
+
+				int chunkX = (_bgScanIndex % Mathf.CeilToInt((float)Grid.WidthInCells / BG_SCAN_CHUNK_SIZE)) * BG_SCAN_CHUNK_SIZE;
+				int chunkY = (_bgScanIndex / Mathf.CeilToInt((float)Grid.WidthInCells / BG_SCAN_CHUNK_SIZE)) * BG_SCAN_CHUNK_SIZE;
+
+				int bgX2 = Mathf.Min(chunkX + BG_SCAN_CHUNK_SIZE, Grid.WidthInCells);
+				int bgY2 = Mathf.Min(chunkY + BG_SCAN_CHUNK_SIZE, Grid.HeightInCells);
+
+				cellsScanned += (bgX2 - chunkX) * (bgY2 - chunkY);
+				ScanArea(chunkX, chunkY, bgX2, bgY2);
+
+				_bgScanIndex = (_bgScanIndex + 1) % Mathf.Max(1, totalChunks);
+			}
+
 			// Flush the batcher
 			int packetSize = ONI_MP.Misc.World.WorldUpdateBatcher.Flush();
 
 			sw.Stop();
 			SyncStats.RecordSync(SyncStats.Gas, cellsScanned, packetSize, sw.ElapsedMilliseconds);
+		}
+
+		/// <summary>
+		/// Adaptive sync frequency based on FPS and client count.
+		/// Returns multiplier: 1.0 (normal) to 6.0 (heavy load).
+		/// </summary>
+		private float GetSyncMultiplier()
+		{
+			float multiplier = 1f;
+
+			// FPS factor
+			float fps = 1f / Mathf.Max(Time.unscaledDeltaTime, 0.001f);
+			if (fps < 20f) multiplier *= 3f;
+			else if (fps < 30f) multiplier *= 2f;
+			else if (fps < 45f) multiplier *= 1.5f;
+
+			// Client count factor
+			int clients = MultiplayerSession.ConnectedPlayers.Count;
+			if (clients > 4) multiplier *= 2f;
+			else if (clients > 2) multiplier *= 1.5f;
+
+			return Mathf.Min(multiplier, 6f);
 		}
 
 		private void ScanArea(int x1, int y1, int x2, int y2)
