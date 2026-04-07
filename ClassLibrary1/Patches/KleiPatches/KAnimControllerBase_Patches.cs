@@ -193,7 +193,7 @@ namespace ONI_MP.Patches.KleiPatches
 				catch (Exception ex)
 				{
 					DebugConsole.LogError($"[KAnimControllerBase_AddAnimOverrides_Patch.Prefix] {ex}");
-					return true;
+					return kanim_file != null;
 				}
 			}
 		}
@@ -223,7 +223,7 @@ namespace ONI_MP.Patches.KleiPatches
 				catch (Exception ex)
 				{
 					DebugConsole.LogError($"[KAnimControllerBase_RemoveAnimOverrides_Patch.Prefix] {ex}");
-					return true;
+					return kanim_file != null;
 				}
 			}
 		}

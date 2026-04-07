@@ -20,12 +20,13 @@ namespace ONI_MP.Patches.World
 			try
 			{
 				OnDigCompletedUpdated(cell, mass, temperature, element_idx, disease_idx, disease_count);
+				return false;
 			}
 			catch (Exception ex)
 			{
 				DebugConsole.LogError($"[WorldDamagePatch.Prefix] {ex}");
+				return true;
 			}
-			return false;
 		}
 
 		private static void OnDigCompletedUpdated(int cell, float mass, float temperature, ushort element_idx, byte disease_idx, int disease_count)

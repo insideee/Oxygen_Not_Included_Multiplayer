@@ -29,6 +29,7 @@ namespace ONI_MP
 		public static Harmony Harmony;
 
 		public static bool UseSteamOverlay = true; // Will be false for non steam instances
+		private static bool _inLogHandler = false;
 
         public override void OnLoad(Harmony harmony)
 		{
@@ -100,9 +101,12 @@ namespace ONI_MP
 			// Diagnostic hooks for unhandled exceptions
 			Application.logMessageReceived += (condition, stackTrace, type) =>
 			{
+				if (_inLogHandler) return;
 				if (type == LogType.Exception || type == LogType.Error)
 				{
+					_inLogHandler = true;
 					DebugConsole.LogError($"[Unity] {type}: {condition}\n{stackTrace}");
+					_inLogHandler = false;
 				}
 			};
 
