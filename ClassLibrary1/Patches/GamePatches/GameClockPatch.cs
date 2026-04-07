@@ -2,6 +2,7 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.World;
+using System;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -23,13 +24,21 @@ namespace ONI_MP.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			try
+			{
+				if (!MultiplayerSession.InSession)
+					return true;
+
+				if (MultiplayerSession.IsClient && !allowAddTimeForSetTime)
+					return false;
+
 				return true;
-
-			if (MultiplayerSession.IsClient && !allowAddTimeForSetTime)
-				return false;
-
-			return true;
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[GameClockPatch.AddTime_Prefix] {ex}");
+				return true;
+			}
 		}
 
 		// Host logic: send WorldCyclePacket every 1s and trigger HardSync at cycle start
@@ -39,35 +48,42 @@ namespace ONI_MP.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
-				return;
-
-			float currentTime = __instance.GetTime();
-
-			// 1. Broadcast world time every 1s
-			if (currentTime - _lastSentTime >= 1f)
+			try
 			{
-				_lastSentTime = currentTime;
+				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+					return;
 
-				PacketSender.SendToAllClients(new WorldCyclePacket
+				float currentTime = __instance.GetTime();
+
+				// 1. Broadcast world time every 1s
+				if (currentTime - _lastSentTime >= 1f)
 				{
-					Cycle = __instance.GetCycle(),
-					CycleTime = __instance.GetTimeSinceStartOfCycle()
-				}, PacketSendMode.Unreliable);
+					_lastSentTime = currentTime;
+
+					PacketSender.SendToAllClients(new WorldCyclePacket
+					{
+						Cycle = __instance.GetCycle(),
+						CycleTime = __instance.GetTimeSinceStartOfCycle()
+					}, PacketSendMode.Unreliable);
+				}
+
+				// 2. Trigger HardSync at the start of a new cycle
+				int currentCycle = __instance.GetCycle();
+				if (currentCycle != _lastCycle)
+				{
+					_lastCycle = currentCycle;
+
+					GameServerHardSync.hardSyncDoneThisCycle = false;
+
+					DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — Hard Sync disabled.");
+
+					// Hard Sync Removed by request
+					// CoroutineRunner.RunOne(DelayedHardSync());
+				}
 			}
-
-			// 2. Trigger HardSync at the start of a new cycle
-			int currentCycle = __instance.GetCycle();
-			if (currentCycle != _lastCycle)
+			catch (Exception ex)
 			{
-				_lastCycle = currentCycle;
-
-				GameServerHardSync.hardSyncDoneThisCycle = false;
-
-                DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — Hard Sync disabled.");
-
-				// Hard Sync Removed by request
-				// CoroutineRunner.RunOne(DelayedHardSync());
+				DebugConsole.LogError($"[GameClockPatch.AddTime_Postfix] {ex}");
 			}
 		}
 

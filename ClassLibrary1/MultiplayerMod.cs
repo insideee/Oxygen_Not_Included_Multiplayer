@@ -89,13 +89,27 @@ namespace ONI_MP
 			}
 			catch (Exception ex)
 			{
-				DebugConsole.LogError($"[ONI_MP] CRITICAL ERROR IN ONLOAD: {ex.Message}");
+				DebugConsole.LogError($"[ONI_MP] CRITICAL ERROR IN ONLOAD: {ex}");
 				DebugConsole.LogException(ex);
 			}
 
 
 			RegisterDevTools();
 			LoadNetworkRelay();
+
+			// Diagnostic hooks for unhandled exceptions
+			Application.logMessageReceived += (condition, stackTrace, type) =>
+			{
+				if (type == LogType.Exception || type == LogType.Error)
+				{
+					DebugConsole.LogError($"[Unity] {type}: {condition}\n{stackTrace}");
+				}
+			};
+
+			AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+			{
+				DebugConsole.LogError($"[AppDomain] Unhandled exception: {args.ExceptionObject}");
+			};
         }
 
         void LoadNetworkRelay()

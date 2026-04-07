@@ -3,6 +3,7 @@ using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.World;
+using System;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -16,7 +17,14 @@ namespace ONI_MP.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
-			OnDigCompletedUpdated(cell, mass, temperature, element_idx, disease_idx, disease_count);
+			try
+			{
+				OnDigCompletedUpdated(cell, mass, temperature, element_idx, disease_idx, disease_count);
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[WorldDamagePatch.Prefix] {ex}");
+			}
 			return false;
 		}
 
