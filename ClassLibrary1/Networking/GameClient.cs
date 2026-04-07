@@ -33,6 +33,12 @@ namespace ONI_MP.Networking
 		public static bool IsHardSyncInProgress = false;
 		private static bool _modVerificationSent = false;
 
+		// Auto-reconnect state
+		private static bool _autoReconnecting = false;
+		private static int _reconnectAttempt = 0;
+		private const int MAX_RECONNECT_ATTEMPTS = 5;
+		private const float RECONNECT_BASE_DELAY = 1f;
+
 
 		private struct CachedConnectionInfo
 		{
@@ -282,6 +288,9 @@ namespace ONI_MP.Networking
 				// Fechar overlay se reconectou com sucesso
 				MultiplayerOverlay.Close();
 
+				// Reset reconnect state on successful connection
+				ResetReconnectState();
+
 				DebugConsole.Log("[GameClient] Reconnection setup complete");
 			}
 			else
@@ -290,8 +299,56 @@ namespace ONI_MP.Networking
 			}
 		}
 
+		private static IEnumerator AutoReconnectCoroutine()
+		{
+			if (_autoReconnecting) yield break;
+			_autoReconnecting = true;
+			_reconnectAttempt++;
+
+			float delay = Mathf.Min(RECONNECT_BASE_DELAY * Mathf.Pow(2, _reconnectAttempt - 1), 30f);
+			DebugConsole.Log($"[GameClient] Auto-reconnect attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS} in {delay}s");
+			MultiplayerOverlay.Show($"Reconnecting... attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS}");
+
+			yield return new WaitForSecondsRealtime(delay);
+
+			if (!Utils.IsInGame())
+			{
+				DebugConsole.Log("[GameClient] No longer in game, aborting reconnect");
+				_autoReconnecting = false;
+				_reconnectAttempt = 0;
+				yield break;
+			}
+
+			try
+			{
+				ReconnectToSession();
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[GameClient] Reconnect attempt {_reconnectAttempt} failed: {ex}");
+			}
+
+			_autoReconnecting = false;
+		}
+
+		public static void ResetReconnectState()
+		{
+			_autoReconnecting = false;
+			_reconnectAttempt = 0;
+		}
+
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
+			// Auto-reconnect if still in game and under max attempts
+			if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
+			{
+				CoroutineRunner.RunOne(AutoReconnectCoroutine());
+				yield break;
+			}
+			// Reset on final failure
+			_reconnectAttempt = 0;
+			_autoReconnecting = false;
+
             MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.LOST_CONNECTION, reason, message));
 			//SaveHelper.CaptureWorldSnapshot();
 			yield return new WaitForSecondsRealtime(3f);
