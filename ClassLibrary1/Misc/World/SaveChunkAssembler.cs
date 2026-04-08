@@ -318,7 +318,7 @@ namespace ONI_MP.Misc.World
 			}
 			catch (System.Exception ex)
 			{
-				DebugConsole.LogWarning($"[ChunkAssembler] Failed to send progress to host: {ex.Message}");
+				DebugConsole.LogWarning($"[ChunkAssembler] Failed to send progress to host: {ex}");
 			}
 		}
 

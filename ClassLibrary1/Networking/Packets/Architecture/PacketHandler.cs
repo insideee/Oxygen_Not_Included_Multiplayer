@@ -3,21 +3,43 @@ using System.IO;
 using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using Shared.Profiling;
+using UnityEngine;
 
 namespace ONI_MP.Networking.Packets.Architecture
 {
 
 	public static class PacketHandler
 	{
-		public static bool readyToProcess = true;
+		private static bool _readyToProcess = true;
+		private static float _notReadySince = float.MaxValue;
+		private const float NOT_READY_TIMEOUT = 60f;
+
+		public static bool readyToProcess
+		{
+			get => _readyToProcess;
+			set
+			{
+				if (!value)
+					_notReadySince = Time.unscaledTime;
+				_readyToProcess = value;
+			}
+		}
 
 		public static void HandleIncoming(byte[] data)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!readyToProcess)
+			if (!_readyToProcess)
 			{
-				return;
+				if (Time.unscaledTime - _notReadySince > NOT_READY_TIMEOUT)
+				{
+					DebugConsole.LogWarning($"[PacketHandler] readyToProcess was false for >{NOT_READY_TIMEOUT}s — force-recovering");
+					_readyToProcess = true;
+				}
+				else
+				{
+					return;
+				}
 			}
 
 			using (var ms = new MemoryStream(data))

@@ -61,13 +61,21 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession)
-					return true;
-				if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+				try
+				{
+					if (!MultiplayerSession.InSession)
+						return true;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 
-				if(MultiplayerSession.IsHost)
-					SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
-				return CanPlayAnims;
+					if(MultiplayerSession.IsHost)
+						SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
+					return CanPlayAnims;
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_Play_Patch.Prefix] {ex}");
+					return true;
+				}
 			}
 
 			public static void Postfix(KAnimControllerBase __instance) => Unlock();
@@ -80,12 +88,20 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession)
+				try
+				{
+					if (!MultiplayerSession.InSession)
+						return true;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+					if (MultiplayerSession.IsHost)
+						SendAnimPacketToClients(__instance, false, anim_names, mode);
+					return CanPlayAnims;
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_PlayRange_Patch.Prefix] {ex}");
 					return true;
-				if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
-				if (MultiplayerSession.IsHost)
-					SendAnimPacketToClients(__instance, false, anim_names, mode);
-				return CanPlayAnims;
+				}
 			}
 
 			public static void Postfix(KAnimControllerBase __instance) => Unlock();
@@ -98,12 +114,20 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession)
+				try
+				{
+					if (!MultiplayerSession.InSession)
+						return true;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+					if (MultiplayerSession.IsHost)
+						SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
+					return CanPlayAnims;
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_Queue_Patch.Prefix] {ex}");
 					return true;
-				if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
-				if (MultiplayerSession.IsHost)
-					SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
-				return CanPlayAnims;
+				}
 			}
 
 			public static void Postfix(KAnimControllerBase __instance) => Unlock();
@@ -151,18 +175,26 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return kanim_file != null;
+				try
+				{
+					if (!MultiplayerSession.InSession) return kanim_file != null;
 
-				//leave to minions for now, potentially remove later
-				if (!__instance.HasTag(GameTags.BaseMinion))
+					//leave to minions for now, potentially remove later
+					if (!__instance.HasTag(GameTags.BaseMinion))
+						return kanim_file != null;
+
+					if (MultiplayerSession.IsClient)
+						return TogglingOverrideFromPacket;
+
+					Console.WriteLine("sending addAnimOveridePacket");
+					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
 					return kanim_file != null;
-
-				if (MultiplayerSession.IsClient)
-					return TogglingOverrideFromPacket;
-
-				Console.WriteLine("sending addAnimOveridePacket");
-				PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
-				return kanim_file != null;
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_AddAnimOverrides_Patch.Prefix] {ex}");
+					return kanim_file != null;
+				}
 			}
 		}
 
@@ -173,18 +205,26 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return kanim_file != null;
+				try
+				{
+					if (!MultiplayerSession.InSession) return kanim_file != null;
 
-				//leave to minions for now, potentially remove later
-				if (!__instance.HasTag(GameTags.BaseMinion))
+					//leave to minions for now, potentially remove later
+					if (!__instance.HasTag(GameTags.BaseMinion))
+						return kanim_file != null;
+
+					if (MultiplayerSession.IsClient)
+						return TogglingOverrideFromPacket;
+
+					Console.WriteLine("sending removeAnimOveridePacket");
+					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));
 					return kanim_file != null;
-
-				if (MultiplayerSession.IsClient)
-					return TogglingOverrideFromPacket;
-
-				Console.WriteLine("sending removeAnimOveridePacket");
-				PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));
-				return kanim_file != null;
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_RemoveAnimOverrides_Patch.Prefix] {ex}");
+					return kanim_file != null;
+				}
 			}
 		}
 
@@ -197,11 +237,17 @@ namespace ONI_MP.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				if (!Utils.IsHostMinion(__instance))
-					return;
+				try
+				{
+					if (!Utils.IsHostMinion(__instance))
+						return;
 
-
-				PacketSender.SendToAllClients(new SymbolVisibilityTogglePacket(__instance, symbol, is_visible));
+					PacketSender.SendToAllClients(new SymbolVisibilityTogglePacket(__instance, symbol, is_visible));
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[KAnimControllerBase_SetSymbolVisiblity_Patch.Prefix] {ex}");
+				}
 			}
 		}
 	}

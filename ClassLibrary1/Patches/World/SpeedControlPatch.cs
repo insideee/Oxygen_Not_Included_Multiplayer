@@ -2,6 +2,7 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.World;
+using System;
 using Shared.Profiling;
 
 namespace ONI_MP.Patches
@@ -17,12 +18,19 @@ namespace ONI_MP.Patches
 		{
 			using var _ = Profiler.Scope();
 
-			if (IsSyncing) return;
+			try
+			{
+				if (IsSyncing) return;
 
-			var packet = new SpeedChangePacket((SpeedChangePacket.SpeedState)Speed);
+				var packet = new SpeedChangePacket((SpeedChangePacket.SpeedState)Speed);
 
-			PacketSender.SendToAllOtherPeers(packet);
-			DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket: {packet.Speed}");
+				PacketSender.SendToAllOtherPeers(packet);
+				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket: {packet.Speed}");
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[SpeedControlPatch.SetSpeed_Postfix] {ex}");
+			}
 		}
 
 		[HarmonyPatch("TogglePause")]
@@ -31,15 +39,22 @@ namespace ONI_MP.Patches
 		{
 			using var _ = Profiler.Scope();
 
-			if (IsSyncing) return;
+			try
+			{
+				if (IsSyncing) return;
 
-			var speedState = __instance.IsPaused
-					? SpeedChangePacket.SpeedState.Paused
-					: (SpeedChangePacket.SpeedState)__instance.GetSpeed();
+				var speedState = __instance.IsPaused
+						? SpeedChangePacket.SpeedState.Paused
+						: (SpeedChangePacket.SpeedState)__instance.GetSpeed();
 
-			var packet = new SpeedChangePacket(speedState);
-            PacketSender.SendToAllOtherPeers(packet);
-            DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket (pause toggle): {packet.Speed}");
+				var packet = new SpeedChangePacket(speedState);
+				PacketSender.SendToAllOtherPeers(packet);
+				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket (pause toggle): {packet.Speed}");
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[SpeedControlPatch.TogglePause_Postfix] {ex}");
+			}
 		}
 	}
 }

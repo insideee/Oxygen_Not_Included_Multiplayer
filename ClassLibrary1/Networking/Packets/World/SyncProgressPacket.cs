@@ -147,7 +147,7 @@ namespace ONI_MP.Networking.Packets.World
             }
             catch (System.Exception ex)
             {
-                DebugConsole.LogWarning($"[SyncProgress] Error updating host display: {ex.Message}");
+                DebugConsole.LogWarning($"[SyncProgress] Error updating host display: {ex}");
             }
         }
 
