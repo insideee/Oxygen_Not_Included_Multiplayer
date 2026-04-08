@@ -70,7 +70,7 @@ namespace ONI_MP.DebugTools
             _instance.AddLog(message, "", LogType.Warning);
         }
 
-        public static void LogError(string message, bool trigger_error_screen = true)
+        public static void LogError(string message, bool trigger_error_screen = false)
         {
             using var _ = Profiler.Scope();
 
