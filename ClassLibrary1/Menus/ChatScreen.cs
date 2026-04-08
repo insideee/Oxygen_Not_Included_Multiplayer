@@ -10,6 +10,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Utils = ONI_MP.Misc.Utils;
+using EventSystem2Syntax;
+using static UnityEngine.GraphicsBuffer;
 
 namespace ONI_MP.UI
 {
@@ -79,6 +81,8 @@ namespace ONI_MP.UI
 
             var drag = header.AddComponent<UIDragHandler>();
             drag.target = rootRT;
+			//rootRT.anchoredPosition = new Vector2(737, -407);
+			Clamp(new Vector2(737, -407), rootRT);
 
             var chatboxContents = new GameObject("Chatbox_Contents");
             chatboxContents.transform.SetParent(chatWindowRoot.transform, false);
@@ -455,6 +459,26 @@ namespace ONI_MP.UI
 			};
 			return pendingMessage;
         }
+        public void Clamp(Vector2 position, RectTransform target)
+		{
+            RectTransform parent = target.parent as RectTransform;
+			Vector2 newPos = position;
 
+            // Clamp to parent/canvas bounds
+            RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
+
+            float halfWidth = target.rect.width * 0.5f;
+            float halfHeight = target.rect.height * 0.5f;
+
+            float leftLimit = -canvasRect.rect.width * 0.5f + halfWidth;
+            float rightLimit = canvasRect.rect.width * 0.5f - halfWidth;
+            float bottomLimit = -canvasRect.rect.height * 0.5f + halfHeight;
+            float topLimit = canvasRect.rect.height * 0.5f - halfHeight;
+
+            newPos.x = Mathf.Clamp(newPos.x, leftLimit, rightLimit);
+            newPos.y = Mathf.Clamp(newPos.y, bottomLimit, topLimit);
+
+            target.anchoredPosition = newPos;
+        }
 	}
 }
