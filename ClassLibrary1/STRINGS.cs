@@ -240,6 +240,12 @@ namespace ONI_MP
 
 						public static LocString LOCAL_PROBLEM = "Connection lost";
                         public static LocString LOCAL_PROBLEM_DESC = "A network error occurred or the connection timed out.";
+
+                        public static LocString KICKED = "Kicked from server";
+                        public static LocString KICKED_DESC = "You were removed from the session.";
+
+                        public static LocString UNKNOWN = "Disconnected";
+                        public static LocString UNKNOWN_DESC = "An unknown network error occurred.";
                     }
 
                     public class RIPTIDE
