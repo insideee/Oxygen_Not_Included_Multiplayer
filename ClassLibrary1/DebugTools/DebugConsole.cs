@@ -83,6 +83,11 @@ namespace ONI_MP.DebugTools
             _instance.AddLog(message, "", LogType.Error);
         }
 
+        public static void LogErrorTriggerInGameScreen(string message)
+        {
+            LogError(message, true);
+        }
+
         public static void LogException(Exception ex)
         {
             using var _ = Profiler.Scope();
