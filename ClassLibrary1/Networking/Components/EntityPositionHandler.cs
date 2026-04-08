@@ -7,6 +7,7 @@ namespace ONI_MP.Networking.Components
 	public class EntityPositionHandler : KMonoBehaviour
 	{
         [MyCmpGet] KBatchedAnimController kbac;
+        [MyCmpGet] Navigator navigator;
 
         private Vector3 lastSentPosition;
 		private float lastSendTime;
@@ -18,6 +19,7 @@ namespace ONI_MP.Networking.Components
         public long serverTimestamp;
         public bool serverFlipX;
         public bool serverFlipY;
+        public NavType serverNavType;
 
         private const float SNAP_DISTANCE = 1.5f;
         private const float LERP_SPEED = 20f;
@@ -69,12 +71,17 @@ namespace ONI_MP.Networking.Components
 		        if (Vector3.Distance(currentPosition, lastSentPosition) < PositionThreshold)
 			        return;
 
+		        NavType navType = NavType.Floor;
+		        if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes)
+			        navType = navigator.CurrentNavType;
+
 		        var packet = new EntityPositionPacket
 		        {
 			        NetId = this.GetNetId(),
 			        Position = currentPosition,
 			        FlipX = kbac != null && kbac.FlipX,
 			        FlipY = kbac != null && kbac.FlipY,
+			        NavType = navType,
 			        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
 		        };
 
@@ -100,6 +107,9 @@ namespace ONI_MP.Networking.Components
 	            kbac.FlipX = serverFlipX;
 	            kbac.FlipY = serverFlipY;
             }
+
+            if (navigator != null && navigator.CurrentNavType != serverNavType)
+	            navigator.SetCurrentNavType(serverNavType);
 
             Vector3 currentPos = transform.position;
             float error = Vector3.Distance(currentPos, serverPosition);

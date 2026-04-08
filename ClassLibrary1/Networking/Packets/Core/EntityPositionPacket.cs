@@ -2,8 +2,6 @@ using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
-using Shared.Interfaces.Networking;
-using System;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -14,6 +12,7 @@ public class EntityPositionPacket : IPacket
 	public Vector3 Position;
 	public bool FlipX;
 	public bool FlipY;
+	public NavType NavType;
 	public long Timestamp;
 
     public void Serialize(BinaryWriter writer)
@@ -24,6 +23,7 @@ public class EntityPositionPacket : IPacket
 		writer.Write(Position);
 		writer.Write(FlipX);
 		writer.Write(FlipY);
+		writer.Write((byte)NavType);
 		writer.Write(Timestamp);
 	}
 
@@ -35,6 +35,7 @@ public class EntityPositionPacket : IPacket
 		Position = reader.ReadVector3();
 		FlipX = reader.ReadBoolean();
 		FlipY = reader.ReadBoolean();
+		NavType = (NavType)reader.ReadByte();
 		Timestamp = reader.ReadInt64();
 	}
 
@@ -57,6 +58,7 @@ public class EntityPositionPacket : IPacket
             handler.serverTimestamp = Timestamp;
             handler.serverFlipX = FlipX;
 			handler.serverFlipY = FlipY;
+			handler.serverNavType = NavType;
         }
 		else
 		{
