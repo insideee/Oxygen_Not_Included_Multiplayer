@@ -1,4 +1,6 @@
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
@@ -54,8 +56,9 @@ namespace ONI_MP.Networking.Packets.Events
 			{
 				type = (NotificationType)System.Enum.Parse(typeof(NotificationType), TypeName);
 			}
-			catch
+			catch (Exception ex)
 			{
+				DebugConsole.LogError($"[NotificationPacket] Error parsing notification type: {ex}");
 				type = NotificationType.Bad;
 			}
 

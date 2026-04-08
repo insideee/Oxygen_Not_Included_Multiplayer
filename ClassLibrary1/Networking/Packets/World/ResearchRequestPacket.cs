@@ -66,13 +66,13 @@ namespace ONI_MP.Networking.Packets.World
 												.Method("SelectAllEntries", new Type[] { typeof(Tech), typeof(bool) })
 												.GetValue(techInstance.tech, false);
 										}
-										catch { }
+										catch (Exception ex) { DebugConsole.LogError($"[ResearchRequestPacket] Error deselecting entry: {ex}"); }
 									}
 								}
 							}
 						}
 					}
-					catch { }
+					catch (Exception ex) { DebugConsole.LogError($"[ResearchRequestPacket] Error clearing queue visuals: {ex}"); }
 
 					// Set the new research
 					Research.Instance.SetActiveResearch(tech, true);
@@ -86,7 +86,7 @@ namespace ONI_MP.Networking.Packets.World
 								.Method("SelectAllEntries", new Type[] { typeof(Tech), typeof(bool) })
 								.GetValue(tech, true);
 						}
-						catch { }
+						catch (Exception ex) { DebugConsole.LogError($"[ResearchRequestPacket] Error selecting entry: {ex}"); }
 					}
 
 					// ResearchPatch will trigger and sync back to all clients

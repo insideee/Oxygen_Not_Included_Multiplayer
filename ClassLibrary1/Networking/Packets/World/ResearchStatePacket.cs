@@ -119,7 +119,7 @@ namespace ONI_MP.Networking.Packets.World
 												.Method("SelectAllEntries", new Type[] { typeof(Tech), typeof(bool) })
 												.GetValue(techInstance.tech, false);
 										}
-										catch { }
+										catch (Exception ex) { DebugConsole.LogError($"[ResearchStatePacket] Error deselecting entry: {ex}"); }
 									}
 								}
 							}
@@ -132,7 +132,7 @@ namespace ONI_MP.Networking.Packets.World
 				}
 				catch (Exception ex)
 				{
-					DebugConsole.LogWarning($"[ResearchLog] Failed to clear queue: {ex.Message}");
+					DebugConsole.LogWarning($"[ResearchLog] Failed to clear queue: {ex}");
 				}
 
 				// Now set the host's active research
@@ -153,7 +153,7 @@ namespace ONI_MP.Networking.Packets.World
 									.Method("SelectAllEntries", new Type[] { typeof(Tech), typeof(bool) })
 									.GetValue(tech, true);
 							}
-							catch { }
+							catch (Exception ex) { DebugConsole.LogError($"[ResearchStatePacket] Error selecting entry: {ex}"); }
 						}
 					}
 				}
@@ -175,7 +175,7 @@ namespace ONI_MP.Networking.Packets.World
 						{
 							Game.Instance?.Trigger((int)GameHashes.ResearchComplete, tech);
 						}
-						catch { }
+						catch (Exception ex) { DebugConsole.LogError($"[ResearchStatePacket] Error triggering ResearchComplete: {ex}"); }
 
 						unlockedCount++;
 					}
@@ -188,7 +188,7 @@ namespace ONI_MP.Networking.Packets.World
 			}
 			catch (Exception ex)
 			{
-				DebugConsole.LogError($"[ResearchStatePacket] Failed to process research state: {ex.Message}");
+				DebugConsole.LogError($"[ResearchStatePacket] Failed to process research state: {ex}");
 			}
 		}
 	}
