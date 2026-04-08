@@ -1,3 +1,5 @@
+/*
+
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using System.IO;
@@ -97,3 +99,5 @@ namespace ONI_MP.Networking.Packets.Core
 		}
 	}
 }
+
+*/

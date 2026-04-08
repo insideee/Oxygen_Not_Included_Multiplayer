@@ -1,7 +1,6 @@
 using HarmonyLib;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
-using ONI_MP.Networking.Packets.Core;
 using Shared.Profiling;
 
 namespace ONI_MP.Patches.Navigation
@@ -44,6 +43,8 @@ namespace ONI_MP.Patches.Navigation
 			return true;
 		}
 	}
+
+	/*
 
 	[HarmonyPatch(typeof(Navigator), nameof(Navigator.BeginTransition))]
 	public static class Navigator_BeginTransition_Patch
@@ -120,4 +121,6 @@ namespace ONI_MP.Patches.Navigation
 			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
 		}
 	}
+
+	*/
 }

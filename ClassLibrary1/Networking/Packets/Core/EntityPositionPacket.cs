@@ -1,4 +1,4 @@
-﻿using ONI_MP.DebugTools;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
@@ -12,11 +12,8 @@ public class EntityPositionPacket : IPacket
 {
 	public int NetId;
 	public Vector3 Position;
-	public Vector3 Velocity;
 	public bool FlipX;
 	public bool FlipY;
-	public NavType NavType;
-	public float SendInterval;
 	public long Timestamp;
 
     public void Serialize(BinaryWriter writer)
@@ -25,11 +22,8 @@ public class EntityPositionPacket : IPacket
 
 		writer.Write(NetId);
 		writer.Write(Position);
-		writer.Write(Velocity);
 		writer.Write(FlipX);
 		writer.Write(FlipY);
-		writer.Write((byte)NavType);
-		writer.Write(SendInterval);
 		writer.Write(Timestamp);
 	}
 
@@ -39,11 +33,8 @@ public class EntityPositionPacket : IPacket
 
 		NetId = reader.ReadInt32();
 		Position = reader.ReadVector3();
-		Velocity = reader.ReadVector3();
 		FlipX = reader.ReadBoolean();
 		FlipY = reader.ReadBoolean();
-		NavType = (NavType)reader.ReadByte();
-		SendInterval = reader.ReadSingle();
 		Timestamp = reader.ReadInt64();
 	}
 
@@ -60,12 +51,9 @@ public class EntityPositionPacket : IPacket
 				return;
 
 			if (handler.serverTimestamp > Timestamp)
-			{
-				return; // Recieved out of date position packet, ignore.
-			}
+				return;
 
             handler.serverPosition = Position;
-            handler.serverVelocity = Velocity;
             handler.serverTimestamp = Timestamp;
             handler.serverFlipX = FlipX;
 			handler.serverFlipY = FlipY;
@@ -76,4 +64,3 @@ public class EntityPositionPacket : IPacket
 		}
 	}
 }
-

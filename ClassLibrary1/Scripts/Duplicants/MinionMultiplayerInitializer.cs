@@ -91,8 +91,7 @@ namespace ONI_MP.Scripts.Duplicants
 					if (smc != null) smc.enabled = false;
 				}
 
-                // Add our client controller for receiving position/animation updates
-                go.AddOrGet<DuplicantClientController>();
+                // go.AddOrGet<DuplicantClientController>();
 				DebugConsole.Log($"[DuplicantSpawn] Client setup complete for {go.name} (NetId: {identity.NetId})");
 			}
 			else if (MultiplayerSession.IsHost)
