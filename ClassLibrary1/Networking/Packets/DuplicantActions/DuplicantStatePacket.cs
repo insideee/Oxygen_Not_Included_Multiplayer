@@ -1,5 +1,4 @@
 using ONI_MP.DebugTools;
-using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
@@ -53,12 +52,6 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 			if (MultiplayerSession.IsHost)
 				return;
 
-			if (!NetworkIdentityRegistry.TryGetComponent<DuplicantClientController>(NetId, out var controller))
-			{
-				DebugConsole.LogWarning($"[DuplicantStatePacket] NetId {NetId} not found");
-				return;
-			}
-			controller.OnStateReceived(ActionState, TargetCell, CurrentAnimName, AnimElapsedTime, IsWorking);
 		}
 	}
 
