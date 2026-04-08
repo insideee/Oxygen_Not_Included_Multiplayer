@@ -20,6 +20,8 @@ namespace ONI_MP.Patches.GamePatches
 		[HarmonyPatch(nameof(EventExtensions.Trigger), new Type[] { typeof(GameObject), typeof(int), typeof(object) })]
 		public static void Postfix(GameObject go, int hash, object data)
 		{
+			return; // Disabled for now
+
 			using var _ = Profiler.Scope();
 
 			// Prevent recursive sync that could cause infinite loops
