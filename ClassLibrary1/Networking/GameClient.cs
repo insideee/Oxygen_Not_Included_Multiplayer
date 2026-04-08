@@ -340,11 +340,12 @@ namespace ONI_MP.Networking
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
 			// Auto-reconnect if still in game and under max attempts
-			if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
-			{
-				CoroutineRunner.RunOne(AutoReconnectCoroutine());
-				yield break;
-			}
+			//if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
+			//{
+			//	CoroutineRunner.RunOne(AutoReconnectCoroutine());
+			//	yield break;
+			//}
+
 			// Reset on final failure
 			_reconnectAttempt = 0;
 			_autoReconnecting = false;
