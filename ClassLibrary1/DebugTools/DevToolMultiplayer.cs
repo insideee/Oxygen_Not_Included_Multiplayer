@@ -51,6 +51,12 @@ namespace ONI_MP.DebugTools
         LanSettings settings_host = new LanSettings();
         LanSettings settings_client = new LanSettings();
 
+        // Unit testing
+        private string unitTestSelectedCategory = "All";
+        private bool unitTestAutoRun = false;
+        private float unitTestAutoRunInterval = 2.0f;
+        private float unitTestAutoRunTimer = 0f;
+
         private static readonly string ModDirectory = Path.Combine(
             Path.GetDirectoryName(typeof(DevToolMultiplayer).Assembly.Location),
             "oni_mp.dll"
@@ -350,6 +356,131 @@ namespace ONI_MP.DebugTools
             if(ImGui.Button("Send test packet"))
             {
                 DediTest.SendTestPacket();
+            }
+
+            ImGui.Separator();
+            DisplayUnitTests();
+        }
+
+        private void DisplayUnitTests()
+        {
+            ImGui.Text("Unit Tests");
+            if (ImGui.Button("Run All"))
+                UnitTestRegistry.RunAll();
+
+            ImGui.SameLine();
+
+            if (ImGui.Button("Run Failed"))
+                UnitTestRegistry.RunFailed();
+
+            ImGui.SameLine();
+
+            ImGui.Checkbox("Auto Run", ref unitTestAutoRun);
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(100);
+            ImGui.InputFloat("Interval (s)", ref unitTestAutoRunInterval);
+
+            if (ImGui.BeginCombo("Category", unitTestSelectedCategory))
+            {
+                if (ImGui.Selectable("All", unitTestSelectedCategory == "All"))
+                    unitTestSelectedCategory = "All";
+
+                foreach (var category in UnitTestRegistry.GetCategories())
+                {
+                    if (ImGui.Selectable(category, unitTestSelectedCategory == category))
+                        unitTestSelectedCategory = category;
+                }
+
+                ImGui.EndCombo();
+            }
+
+            ImGui.Separator();
+
+            if (unitTestAutoRun)
+            {
+                unitTestAutoRunTimer += ImGui.GetIO().DeltaTime;
+
+                if (unitTestAutoRunTimer >= unitTestAutoRunInterval)
+                {
+                    UnitTestRegistry.RunAll();
+                    unitTestAutoRunTimer = 0f;
+                }
+            }
+
+            if (ImGui.BeginTable("UnitTestsTable", 4,
+                ImGuiTableFlags.Borders |
+                ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.Resizable |
+                ImGuiTableFlags.ScrollY))
+            {
+                // Setup columns: Category | Test (name + button) | Status | Message
+                ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, 120);
+                ImGui.TableSetupColumn("Test", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 140);
+                ImGui.TableSetupColumn("Message", ImGuiTableColumnFlags.WidthStretch);
+
+                ImGui.TableHeadersRow();
+
+                foreach (var test in UnitTestRegistry.Tests)
+                {
+                    if (unitTestSelectedCategory != "All" && test.Category != unitTestSelectedCategory)
+                        continue;
+
+                    ImGui.PushID(test.Name);
+
+                    ImGui.TableNextRow();
+
+                    ImGui.TableSetColumnIndex(0);
+                    ImGui.Text(test.Category);
+
+                    ImGui.TableSetColumnIndex(1);
+                    ImGui.Text(test.Name);
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Run"))
+                        test.Run();
+
+                    ImGui.TableSetColumnIndex(2);
+                    Vector4 color;
+                    string label;
+
+                    if (!test.HasRun)
+                    {
+                        color = new Vector4(1f, 1f, 0f, 1f);
+                        label = "NOT RUN";
+                    }
+                    else
+                    {
+                        switch (test.State)
+                        {
+                            case TestState.Passed:
+                                color = new Vector4(0f, 1f, 0f, 1f);
+                                label = $"PASS ({test.DurationMs:F2} ms)";
+                                break;
+                            case TestState.Failed:
+                                color = new Vector4(1f, 0f, 0f, 1f);
+                                label = $"FAIL ({test.DurationMs:F2} ms)";
+                                break;
+                            case TestState.InProgress:
+                                color = new Vector4(0f, 1f, 1f, 1f);
+                                label = $"IN PROGRESS";
+                                break;
+                            default:
+                                color = new Vector4(1f, 1f, 1f, 1f);
+                                label = "UNKNOWN";
+                                break;
+                        }
+                    }
+
+                    ImGui.TextColored(color, label);
+
+                    ImGui.TableSetColumnIndex(3);
+                    if (!string.IsNullOrEmpty(test.Message))
+                        ImGui.TextWrapped(test.Message);
+
+                    ImGui.PopID();
+                }
+
+                ImGui.EndTable();
             }
         }
 

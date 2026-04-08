@@ -230,8 +230,11 @@ namespace ONI_MP
 			///does weird force restarts; replaced with plib version checker that doesnt restart the game
 			//ModUpdater.Updater.CheckForUpdate();
 
+#if DEBUG
+			UnitTestRegistry.DiscoverTests();
+#endif
 			// For now default to the steam transport
-            NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
 		}
 	}
 }
