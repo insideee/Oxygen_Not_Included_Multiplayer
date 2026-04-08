@@ -11,10 +11,11 @@ namespace ONI_MP.Networking
 
 		public static bool ShouldHostAfterLoad = false;
 
-		/// <summary>
-		/// HOST ONLY - Returns a list of connected players
-		/// </summary>
-		public static readonly Dictionary<ulong, MultiplayerPlayer> ConnectedPlayers = new Dictionary<ulong, MultiplayerPlayer>();
+        /// <summary>
+        /// HOST ONLY - Returns a list of connected players
+		/// <para>For clients use NetworkConfig.GetConnectedClients() instead</para>
+        /// </summary>
+        public static readonly Dictionary<ulong, MultiplayerPlayer> ConnectedPlayers = new Dictionary<ulong, MultiplayerPlayer>();
 
 		public static ulong LocalUserID => NetworkConfig.GetLocalID();
 
