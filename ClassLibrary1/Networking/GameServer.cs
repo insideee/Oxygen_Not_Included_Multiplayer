@@ -72,11 +72,18 @@ namespace ONI_MP.Networking
 			switch (State)
 			{
 				case ServerState.Started:
-					NetworkConfig.TransportServer.Update();
-                    NetworkConfig.TransportServer.OnMessageRecieved();
+					try
+					{
+						NetworkConfig.TransportServer.Update();
+						NetworkConfig.TransportServer.OnMessageRecieved();
 
-                    // Check for lost chunks and retransmit specific missing chunks
-                    SaveFileTransferManager.CheckForLostChunks();
+						// Check for lost chunks and retransmit specific missing chunks
+						SaveFileTransferManager.CheckForLostChunks();
+					}
+					catch (Exception ex)
+					{
+						DebugConsole.LogError($"[GameServer] Error in server update: {ex}");
+					}
 					break;
 
 				case ServerState.Preparing:
