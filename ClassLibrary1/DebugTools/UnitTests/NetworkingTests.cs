@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using ONI_MP.Networking;
-using ONI_MP.Tests;
 using static UnityEngine.LowLevelPhysics2D.PhysicsQuery;
 
 namespace ONI_MP.DebugTools.UnitTests
