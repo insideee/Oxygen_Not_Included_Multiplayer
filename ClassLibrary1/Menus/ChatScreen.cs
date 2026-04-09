@@ -444,7 +444,7 @@ namespace ONI_MP.UI
 				return false;
 
 			Vector2 mousePos = Input.mousePosition;
-			return RectTransformUtility.RectangleContainsScreenPoint(Instance.panelRectTransform, mousePos, Camera.main);
+			return RectTransformUtility.RectangleContainsScreenPoint(Instance.panelRectTransform, mousePos, null);
 		}
 
 		private void OnInputSubmitted(string text)
