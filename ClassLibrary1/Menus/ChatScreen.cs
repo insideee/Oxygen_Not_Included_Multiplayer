@@ -2,7 +2,6 @@
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Social;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -10,8 +9,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Utils = ONI_MP.Misc.Utils;
-using EventSystem2Syntax;
-using static UnityEngine.GraphicsBuffer;
 
 namespace ONI_MP.UI
 {
@@ -35,6 +32,7 @@ namespace ONI_MP.UI
 		}
 
 		private static List<PendingMessage> pendingMessages = new List<PendingMessage>();
+		private static List<PendingMessage> chatHistory = new List<PendingMessage>();
 
 		public static void Show()
 		{
@@ -56,6 +54,19 @@ namespace ONI_MP.UI
 			rt.anchoredPosition = new Vector2(0, 0);
 
 			Instance.SetupUI();
+
+			Game.Instance?.Subscribe(MP_HASHES.OnPlayerJoined, _ => SendChatHistoryToClients());
+		}
+
+		private static void SendChatHistoryToClients()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost || chatHistory.Count == 0)
+				return;
+
+			var packet = new ChatHistorySyncPacket(chatHistory);
+			PacketSender.SendToAllClients(packet);
 		}
         private void SetupUI()
         {
@@ -203,6 +214,15 @@ namespace ONI_MP.UI
 			inputField.gameObject.SetActive(true);
 		}
 
+		public void ClearMessages()
+		{
+			using var _ = Profiler.Scope();
+
+			foreach (var tmp in messages.Values)
+				Destroy(tmp.gameObject);
+			messages.Clear();
+		}
+
 		public void AddMessage(long timestamp, string text)
 		{
 			using var _ = Profiler.Scope();
@@ -245,6 +265,8 @@ namespace ONI_MP.UI
 			fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
             messages.Add(timestamp, tmp);
+			if (text != STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED)
+				chatHistory.Add(new PendingMessage { timestamp = timestamp, message = text });
 
 			// Manually rebuild layout and force scroll to bottom
 			LayoutRebuilder.ForceRebuildLayoutImmediate(messageContainer);
