@@ -6,7 +6,7 @@ namespace ONI_MP.DebugTools.UnitTests
 {
     public static class DuplicantTests
     {
-        [UnitTest(category: "Duplicant")]
+        [UnitTest(name: "Duplicant is selected?", category: "Duplicant")]
         public static UnitTestResult HasDuplicantSelected()
         {
             var selected = SelectTool.Instance?.selected;

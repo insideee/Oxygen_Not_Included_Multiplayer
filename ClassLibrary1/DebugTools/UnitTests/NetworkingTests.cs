@@ -9,7 +9,7 @@ namespace ONI_MP.DebugTools.UnitTests
 {
     public static class NetworkingTests
     {
-        [UnitTest(category: "Networking")]
+        [UnitTest(name: "Server is running", category: "Networking")]
         public static UnitTestResult ServerStarts()
         {
             if (NetworkConfig.TransportServer == null)
@@ -21,7 +21,7 @@ namespace ONI_MP.DebugTools.UnitTests
             return UnitTestResult.Pass("Server is running");
         }
 
-        [UnitTest(category: "Networking")]
+        [UnitTest(name: "Using Steamworks Transport", category: "Networking")]
         public static UnitTestResult IsSteamTransport()
         {
             if (NetworkConfig.transport != NetworkConfig.NetworkTransport.STEAMWORKS)
@@ -29,7 +29,7 @@ namespace ONI_MP.DebugTools.UnitTests
             return UnitTestResult.Pass("Transport is Steamworks");
         }
 
-        [UnitTest(category: "Networking")]
+        [UnitTest(name: "Using Riptide Transport", category: "Networking")]
         public static UnitTestResult IsRiptideTransport()
         {
             if (NetworkConfig.transport != NetworkConfig.NetworkTransport.RIPTIDE)
@@ -37,7 +37,7 @@ namespace ONI_MP.DebugTools.UnitTests
             return UnitTestResult.Pass("Transport is Riptide");
         }
 
-        [UnitTest(category: "Networking")]
+        [UnitTest(name: "Check for duplicate network identities", category: "Networking")]
         public static UnitTestResult CheckForDuplicateNetworkIdentities()
         {
             var identities = NetworkIdentityRegistry.AllIdentities;
