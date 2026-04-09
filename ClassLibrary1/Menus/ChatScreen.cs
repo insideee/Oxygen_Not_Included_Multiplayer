@@ -2,7 +2,6 @@
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Social;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -10,8 +9,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Utils = ONI_MP.Misc.Utils;
-using EventSystem2Syntax;
-using static UnityEngine.GraphicsBuffer;
 
 namespace ONI_MP.UI
 {
@@ -26,6 +23,7 @@ namespace ONI_MP.UI
 
 		private GameObject header;
 		private GameObject chatbox;
+		private GameObject resizeHandles;
 		private bool expanded = false;
 
 		public struct PendingMessage
@@ -35,6 +33,7 @@ namespace ONI_MP.UI
 		}
 
 		private static List<PendingMessage> pendingMessages = new List<PendingMessage>();
+		private static List<PendingMessage> chatHistory = new List<PendingMessage>();
 
 		public static void Show()
 		{
@@ -52,9 +51,23 @@ namespace ONI_MP.UI
 			rt.anchorMin = new Vector2(0.5f, 0.5f);
 			rt.anchorMax = new Vector2(0.5f, 0.5f);
 			rt.pivot = new Vector2(0.5f, 0.5f);
+			rt.sizeDelta = Vector2.zero;
 			rt.anchoredPosition = new Vector2(0, 0);
 
 			Instance.SetupUI();
+
+			Game.Instance?.Subscribe(MP_HASHES.OnPlayerJoined, _ => SendChatHistoryToClients());
+		}
+
+		private static void SendChatHistoryToClients()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost || chatHistory.Count == 0)
+				return;
+
+			var packet = new ChatHistorySyncPacket(chatHistory);
+			PacketSender.SendToAllClients(packet);
 		}
         private void SetupUI()
         {
@@ -75,14 +88,16 @@ namespace ONI_MP.UI
             headerRT.anchorMin = new Vector2(0, 1);
             headerRT.anchorMax = new Vector2(1, 1);
             headerRT.pivot = new Vector2(0.5f, 1);
-            headerRT.anchoredPosition = new Vector2(0, 20);
+            headerRT.anchoredPosition = new Vector2(0, 0);
             headerRT.sizeDelta = new Vector2(0, 30);
             header.GetComponent<Image>().color = new Color(0.4f, 0.2f, 0.3f, 0.9f);
 
             var drag = header.AddComponent<UIDragHandler>();
             drag.target = rootRT;
-			//rootRT.anchoredPosition = new Vector2(737, -407);
-			Clamp(new Vector2(737, -407), rootRT);
+			RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
+			float startX = canvasRect.rect.width * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
+			float startY = -canvasRect.rect.height * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
+			rootRT.anchoredPosition = new Vector2(startX, startY);
 
             var chatboxContents = new GameObject("Chatbox_Contents");
             chatboxContents.transform.SetParent(chatWindowRoot.transform, false);
@@ -95,9 +110,14 @@ namespace ONI_MP.UI
             contentsRT.offsetMin = new Vector2(0, 0);
             contentsRT.offsetMax = new Vector2(0, -30);
 
-            var panel = CreatePanel("ChatPanel", chatboxContents.transform, new Vector2(400, 200));
+            var panel = new GameObject("ChatPanel", typeof(Image));
+            panel.transform.SetParent(chatboxContents.transform, false);
             panel.GetComponent<Image>().color = new Color(0, 0, 0, 0.7f);
             panelRectTransform = panel.GetComponent<RectTransform>();
+            panelRectTransform.anchorMin = Vector2.zero;
+            panelRectTransform.anchorMax = Vector2.one;
+            panelRectTransform.offsetMin = Vector2.zero;
+            panelRectTransform.offsetMax = Vector2.zero;
 
             var scroll = CreateScrollArea("Scroll", panel.transform, out messageContainer);
             var scrollRT = scroll.GetComponent<RectTransform>();
@@ -114,6 +134,10 @@ namespace ONI_MP.UI
             messageContainer.pivot = new Vector2(0.5f, 1f);
 
             inputField = CreateInputField("ChatInput", panel.transform, new Vector2(10, 15), new Vector2(380, 30));
+            var inputRT = inputField.GetComponent<RectTransform>();
+            inputRT.anchorMax = new Vector2(1, 0);
+            inputRT.offsetMin = new Vector2(10, 15);
+            inputRT.offsetMax = new Vector2(-10, 45);
             inputField.onEndEdit.AddListener(OnInputSubmitted);
 
             var headerTextGO = new GameObject("HeaderText", typeof(TextMeshProUGUI));
@@ -134,12 +158,24 @@ namespace ONI_MP.UI
             expanded = true;
             header.GetComponent<Button>().onClick.AddListener(() =>
             {
+                if (drag.WasDragged)
+                    return;
+
                 expanded = !expanded;
                 chatbox.SetActive(expanded);
                 headerText.text = expanded ? STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT : STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND;
             });
 
             header.transform.SetAsLastSibling();
+
+            resizeHandles = new GameObject("ResizeHandles", typeof(RectTransform));
+            resizeHandles.transform.SetParent(chatWindowRoot.transform, false);
+            var resizeRT = resizeHandles.GetComponent<RectTransform>();
+            resizeRT.anchorMin = Vector2.zero;
+            resizeRT.anchorMax = Vector2.one;
+            resizeRT.offsetMin = Vector2.zero;
+            resizeRT.offsetMax = Vector2.zero;
+            CreateResizeHandles(resizeHandles.transform, rootRT);
 
             PendingMessage init_message = GeneratePendingMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
             QueueMessage(init_message);
@@ -197,6 +233,15 @@ namespace ONI_MP.UI
 			inputField.gameObject.SetActive(true);
 		}
 
+		public void ClearMessages()
+		{
+			using var _ = Profiler.Scope();
+
+			foreach (var tmp in messages.Values)
+				Destroy(tmp.gameObject);
+			messages.Clear();
+		}
+
 		public void AddMessage(long timestamp, string text)
 		{
 			using var _ = Profiler.Scope();
@@ -239,6 +284,8 @@ namespace ONI_MP.UI
 			fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
             messages.Add(timestamp, tmp);
+			if (text != STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED)
+				chatHistory.Add(new PendingMessage { timestamp = timestamp, message = text });
 
 			// Manually rebuild layout and force scroll to bottom
 			LayoutRebuilder.ForceRebuildLayoutImmediate(messageContainer);
@@ -259,6 +306,7 @@ namespace ONI_MP.UI
 
 			header.SetActive(MultiplayerSession.InSession);
 			chatbox.SetActive(MultiplayerSession.InSession && expanded);
+			resizeHandles.SetActive(MultiplayerSession.InSession && expanded);
 			if (!MultiplayerSession.InSession)
 			{
 				return;
@@ -394,6 +442,32 @@ namespace ONI_MP.UI
 			fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 			fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
+			var scrollbarGO = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+			scrollbarGO.transform.SetParent(scrollGO.transform, false);
+			var scrollbarRT = scrollbarGO.GetComponent<RectTransform>();
+			scrollbarRT.anchorMin = new Vector2(1, 0);
+			scrollbarRT.anchorMax = Vector2.one;
+			scrollbarRT.pivot = new Vector2(1, 1);
+			scrollbarRT.offsetMin = new Vector2(-8, 0);
+			scrollbarRT.offsetMax = Vector2.zero;
+			scrollbarGO.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.15f, 0.5f);
+
+			var handleGO = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+			handleGO.transform.SetParent(scrollbarGO.transform, false);
+			var handleRT = handleGO.GetComponent<RectTransform>();
+			handleRT.anchorMin = Vector2.zero;
+			handleRT.anchorMax = Vector2.one;
+			handleRT.offsetMin = new Vector2(2, 2);
+			handleRT.offsetMax = new Vector2(-2, -2);
+			handleGO.GetComponent<Image>().color = new Color(0.6f, 0.6f, 0.6f, 0.6f);
+
+			var scrollbar = scrollbarGO.GetComponent<Scrollbar>();
+			scrollbar.handleRect = handleRT;
+			scrollbar.direction = Scrollbar.Direction.BottomToTop;
+			scrollbar.targetGraphic = handleGO.GetComponent<Image>();
+
+			viewportRT.offsetMax = new Vector2(-10, 0);
+
 			var scroll = scrollGO.GetComponent<ScrollRect>();
 			scroll.content = content;
 			scroll.viewport = viewportRT;
@@ -401,6 +475,8 @@ namespace ONI_MP.UI
 			scroll.vertical = true;
 			scroll.movementType = ScrollRect.MovementType.Clamped;
 			scroll.scrollSensitivity = 50f;
+			scroll.verticalScrollbar = scrollbar;
+			scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
 
 			// Add layout group and fitter to viewport (optional but can help)
 			viewport.AddComponent<CanvasRenderer>();
@@ -416,7 +492,7 @@ namespace ONI_MP.UI
 				return false;
 
 			Vector2 mousePos = Input.mousePosition;
-			return RectTransformUtility.RectangleContainsScreenPoint(Instance.panelRectTransform, mousePos, Camera.main);
+			return RectTransformUtility.RectangleContainsScreenPoint(Instance.panelRectTransform, mousePos, null);
 		}
 
 		private void OnInputSubmitted(string text)
@@ -459,21 +535,74 @@ namespace ONI_MP.UI
 			};
 			return pendingMessage;
         }
+        private void CreateResizeHandles(Transform parent, RectTransform target)
+		{
+			using var _ = Profiler.Scope();
+
+			float halfThick = 4f;
+			float cornerSize = 12f;
+
+			CreateHandle(parent, target, ResizeEdge.Top,
+				new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(0, -halfThick), new Vector2(0, halfThick));
+			CreateHandle(parent, target, ResizeEdge.Bottom,
+				new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(0, -halfThick), new Vector2(0, halfThick));
+			CreateHandle(parent, target, ResizeEdge.Left,
+				new Vector2(0, 0), new Vector2(0, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfThick, 0), new Vector2(halfThick, 0));
+			CreateHandle(parent, target, ResizeEdge.Right,
+				new Vector2(1, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfThick, 0), new Vector2(halfThick, 0));
+
+			float halfCorner = cornerSize * 0.5f;
+			CreateHandle(parent, target, ResizeEdge.Top | ResizeEdge.Left,
+				new Vector2(0, 1), new Vector2(0, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Top | ResizeEdge.Right,
+				new Vector2(1, 1), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Bottom | ResizeEdge.Left,
+				new Vector2(0, 0), new Vector2(0, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Bottom | ResizeEdge.Right,
+				new Vector2(1, 0), new Vector2(1, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+		}
+
+		private void CreateHandle(Transform parent, RectTransform target, ResizeEdge edges,
+			Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot,
+			Vector2 offsetMin, Vector2 offsetMax)
+		{
+			var go = new GameObject($"ResizeHandle_{edges}", typeof(RectTransform), typeof(Image));
+			go.transform.SetParent(parent, false);
+
+			var rt = go.GetComponent<RectTransform>();
+			rt.anchorMin = anchorMin;
+			rt.anchorMax = anchorMax;
+			rt.pivot = pivot;
+			rt.offsetMin = offsetMin;
+			rt.offsetMax = offsetMax;
+
+			var img = go.GetComponent<Image>();
+			img.color = Color.clear;
+
+			var handle = go.AddComponent<UIResizeHandle>();
+			handle.target = target;
+			handle.edges = edges;
+		}
+
         public void Clamp(Vector2 position, RectTransform target)
 		{
-            RectTransform parent = target.parent as RectTransform;
 			Vector2 newPos = position;
 
-            // Clamp to parent/canvas bounds
             RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
 
-            float halfWidth = target.rect.width * 0.5f;
-            float halfHeight = target.rect.height * 0.5f;
-
-            float leftLimit = -canvasRect.rect.width * 0.5f + halfWidth;
-            float rightLimit = canvasRect.rect.width * 0.5f - halfWidth;
-            float bottomLimit = -canvasRect.rect.height * 0.5f + halfHeight;
-            float topLimit = canvasRect.rect.height * 0.5f - halfHeight;
+            float padding = 10f;
+            float leftLimit = -canvasRect.rect.width * 0.5f + target.rect.width * target.pivot.x + padding;
+            float rightLimit = canvasRect.rect.width * 0.5f - target.rect.width * (1f - target.pivot.x) - padding;
+            float bottomLimit = -canvasRect.rect.height * 0.5f + target.rect.height * target.pivot.y + padding;
+            float topLimit = canvasRect.rect.height * 0.5f - target.rect.height * (1f - target.pivot.y) - padding;
 
             newPos.x = Mathf.Clamp(newPos.x, leftLimit, rightLimit);
             newPos.y = Mathf.Clamp(newPos.y, bottomLimit, topLimit);

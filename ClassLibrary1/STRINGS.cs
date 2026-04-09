@@ -205,7 +205,7 @@ namespace ONI_MP
 			}
 			public class MP_CHATWINDOW
 			{
-				public static LocString CHAT_INITIALIZED = "<color=yellow>[System]:</color> Chat initialized.";
+				public static LocString CHAT_INITIALIZED = "<color=yellow>[System]</color> Chat initialized.";
 				public static LocString CHAT_CLIENT_REJECTED = "<color=red>[System]</color> {0} was rejected due to mod incompatibility: {1}";
 				public static LocString CHAT_CLIENT_JOINED = "<color=yellow>[System]</color> <b>{0}</b> joined the game.";
 				public static LocString CHAT_CLIENT_LEFT = "<color=yellow>[System]</color> <b>{0}</b> left the game.";
