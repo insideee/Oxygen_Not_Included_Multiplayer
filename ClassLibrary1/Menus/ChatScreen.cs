@@ -442,6 +442,32 @@ namespace ONI_MP.UI
 			fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 			fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
+			var scrollbarGO = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+			scrollbarGO.transform.SetParent(scrollGO.transform, false);
+			var scrollbarRT = scrollbarGO.GetComponent<RectTransform>();
+			scrollbarRT.anchorMin = new Vector2(1, 0);
+			scrollbarRT.anchorMax = Vector2.one;
+			scrollbarRT.pivot = new Vector2(1, 1);
+			scrollbarRT.offsetMin = new Vector2(-8, 0);
+			scrollbarRT.offsetMax = Vector2.zero;
+			scrollbarGO.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.15f, 0.5f);
+
+			var handleGO = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+			handleGO.transform.SetParent(scrollbarGO.transform, false);
+			var handleRT = handleGO.GetComponent<RectTransform>();
+			handleRT.anchorMin = Vector2.zero;
+			handleRT.anchorMax = Vector2.one;
+			handleRT.offsetMin = new Vector2(2, 2);
+			handleRT.offsetMax = new Vector2(-2, -2);
+			handleGO.GetComponent<Image>().color = new Color(0.6f, 0.6f, 0.6f, 0.6f);
+
+			var scrollbar = scrollbarGO.GetComponent<Scrollbar>();
+			scrollbar.handleRect = handleRT;
+			scrollbar.direction = Scrollbar.Direction.BottomToTop;
+			scrollbar.targetGraphic = handleGO.GetComponent<Image>();
+
+			viewportRT.offsetMax = new Vector2(-10, 0);
+
 			var scroll = scrollGO.GetComponent<ScrollRect>();
 			scroll.content = content;
 			scroll.viewport = viewportRT;
@@ -449,6 +475,8 @@ namespace ONI_MP.UI
 			scroll.vertical = true;
 			scroll.movementType = ScrollRect.MovementType.Clamped;
 			scroll.scrollSensitivity = 50f;
+			scroll.verticalScrollbar = scrollbar;
+			scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
 
 			// Add layout group and fitter to viewport (optional but can help)
 			viewport.AddComponent<CanvasRenderer>();
