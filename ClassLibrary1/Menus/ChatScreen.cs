@@ -52,6 +52,7 @@ namespace ONI_MP.UI
 			rt.anchorMin = new Vector2(0.5f, 0.5f);
 			rt.anchorMax = new Vector2(0.5f, 0.5f);
 			rt.pivot = new Vector2(0.5f, 0.5f);
+			rt.sizeDelta = Vector2.zero;
 			rt.anchoredPosition = new Vector2(0, 0);
 
 			Instance.SetupUI();
@@ -81,8 +82,10 @@ namespace ONI_MP.UI
 
             var drag = header.AddComponent<UIDragHandler>();
             drag.target = rootRT;
-			//rootRT.anchoredPosition = new Vector2(737, -407);
-			Clamp(new Vector2(737, -407), rootRT);
+			RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
+			float startX = canvasRect.rect.width * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
+			float startY = -canvasRect.rect.height * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
+			rootRT.anchoredPosition = new Vector2(startX, startY);
 
             var chatboxContents = new GameObject("Chatbox_Contents");
             chatboxContents.transform.SetParent(chatWindowRoot.transform, false);
@@ -464,19 +467,15 @@ namespace ONI_MP.UI
         }
         public void Clamp(Vector2 position, RectTransform target)
 		{
-            RectTransform parent = target.parent as RectTransform;
 			Vector2 newPos = position;
 
-            // Clamp to parent/canvas bounds
             RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
 
-            float halfWidth = target.rect.width * 0.5f;
-            float halfHeight = target.rect.height * 0.5f;
-
-            float leftLimit = -canvasRect.rect.width * 0.5f + halfWidth;
-            float rightLimit = canvasRect.rect.width * 0.5f - halfWidth;
-            float bottomLimit = -canvasRect.rect.height * 0.5f + halfHeight;
-            float topLimit = canvasRect.rect.height * 0.5f - halfHeight;
+            float padding = 10f;
+            float leftLimit = -canvasRect.rect.width * 0.5f + target.rect.width * target.pivot.x + padding;
+            float rightLimit = canvasRect.rect.width * 0.5f - target.rect.width * (1f - target.pivot.x) - padding;
+            float bottomLimit = -canvasRect.rect.height * 0.5f + target.rect.height * target.pivot.y + padding;
+            float topLimit = canvasRect.rect.height * 0.5f - target.rect.height * (1f - target.pivot.y) - padding;
 
             newPos.x = Mathf.Clamp(newPos.x, leftLimit, rightLimit);
             newPos.y = Mathf.Clamp(newPos.y, bottomLimit, topLimit);
