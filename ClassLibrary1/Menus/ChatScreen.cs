@@ -23,6 +23,7 @@ namespace ONI_MP.UI
 
 		private GameObject header;
 		private GameObject chatbox;
+		private GameObject resizeHandles;
 		private bool expanded = false;
 
 		public struct PendingMessage
@@ -87,7 +88,7 @@ namespace ONI_MP.UI
             headerRT.anchorMin = new Vector2(0, 1);
             headerRT.anchorMax = new Vector2(1, 1);
             headerRT.pivot = new Vector2(0.5f, 1);
-            headerRT.anchoredPosition = new Vector2(0, 20);
+            headerRT.anchoredPosition = new Vector2(0, 0);
             headerRT.sizeDelta = new Vector2(0, 30);
             header.GetComponent<Image>().color = new Color(0.4f, 0.2f, 0.3f, 0.9f);
 
@@ -109,9 +110,14 @@ namespace ONI_MP.UI
             contentsRT.offsetMin = new Vector2(0, 0);
             contentsRT.offsetMax = new Vector2(0, -30);
 
-            var panel = CreatePanel("ChatPanel", chatboxContents.transform, new Vector2(400, 200));
+            var panel = new GameObject("ChatPanel", typeof(Image));
+            panel.transform.SetParent(chatboxContents.transform, false);
             panel.GetComponent<Image>().color = new Color(0, 0, 0, 0.7f);
             panelRectTransform = panel.GetComponent<RectTransform>();
+            panelRectTransform.anchorMin = Vector2.zero;
+            panelRectTransform.anchorMax = Vector2.one;
+            panelRectTransform.offsetMin = Vector2.zero;
+            panelRectTransform.offsetMax = Vector2.zero;
 
             var scroll = CreateScrollArea("Scroll", panel.transform, out messageContainer);
             var scrollRT = scroll.GetComponent<RectTransform>();
@@ -128,6 +134,10 @@ namespace ONI_MP.UI
             messageContainer.pivot = new Vector2(0.5f, 1f);
 
             inputField = CreateInputField("ChatInput", panel.transform, new Vector2(10, 15), new Vector2(380, 30));
+            var inputRT = inputField.GetComponent<RectTransform>();
+            inputRT.anchorMax = new Vector2(1, 0);
+            inputRT.offsetMin = new Vector2(10, 15);
+            inputRT.offsetMax = new Vector2(-10, 45);
             inputField.onEndEdit.AddListener(OnInputSubmitted);
 
             var headerTextGO = new GameObject("HeaderText", typeof(TextMeshProUGUI));
@@ -157,6 +167,15 @@ namespace ONI_MP.UI
             });
 
             header.transform.SetAsLastSibling();
+
+            resizeHandles = new GameObject("ResizeHandles", typeof(RectTransform));
+            resizeHandles.transform.SetParent(chatWindowRoot.transform, false);
+            var resizeRT = resizeHandles.GetComponent<RectTransform>();
+            resizeRT.anchorMin = Vector2.zero;
+            resizeRT.anchorMax = Vector2.one;
+            resizeRT.offsetMin = Vector2.zero;
+            resizeRT.offsetMax = Vector2.zero;
+            CreateResizeHandles(resizeHandles.transform, rootRT);
 
             PendingMessage init_message = GeneratePendingMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
             QueueMessage(init_message);
@@ -287,6 +306,7 @@ namespace ONI_MP.UI
 
 			header.SetActive(MultiplayerSession.InSession);
 			chatbox.SetActive(MultiplayerSession.InSession && expanded);
+			resizeHandles.SetActive(MultiplayerSession.InSession && expanded);
 			if (!MultiplayerSession.InSession)
 			{
 				return;
@@ -487,6 +507,63 @@ namespace ONI_MP.UI
 			};
 			return pendingMessage;
         }
+        private void CreateResizeHandles(Transform parent, RectTransform target)
+		{
+			using var _ = Profiler.Scope();
+
+			float halfThick = 4f;
+			float cornerSize = 12f;
+
+			CreateHandle(parent, target, ResizeEdge.Top,
+				new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(0, -halfThick), new Vector2(0, halfThick));
+			CreateHandle(parent, target, ResizeEdge.Bottom,
+				new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(0, -halfThick), new Vector2(0, halfThick));
+			CreateHandle(parent, target, ResizeEdge.Left,
+				new Vector2(0, 0), new Vector2(0, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfThick, 0), new Vector2(halfThick, 0));
+			CreateHandle(parent, target, ResizeEdge.Right,
+				new Vector2(1, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfThick, 0), new Vector2(halfThick, 0));
+
+			float halfCorner = cornerSize * 0.5f;
+			CreateHandle(parent, target, ResizeEdge.Top | ResizeEdge.Left,
+				new Vector2(0, 1), new Vector2(0, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Top | ResizeEdge.Right,
+				new Vector2(1, 1), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Bottom | ResizeEdge.Left,
+				new Vector2(0, 0), new Vector2(0, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+			CreateHandle(parent, target, ResizeEdge.Bottom | ResizeEdge.Right,
+				new Vector2(1, 0), new Vector2(1, 0), new Vector2(0.5f, 0.5f),
+				new Vector2(-halfCorner, -halfCorner), new Vector2(halfCorner, halfCorner));
+		}
+
+		private void CreateHandle(Transform parent, RectTransform target, ResizeEdge edges,
+			Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot,
+			Vector2 offsetMin, Vector2 offsetMax)
+		{
+			var go = new GameObject($"ResizeHandle_{edges}", typeof(RectTransform), typeof(Image));
+			go.transform.SetParent(parent, false);
+
+			var rt = go.GetComponent<RectTransform>();
+			rt.anchorMin = anchorMin;
+			rt.anchorMax = anchorMax;
+			rt.pivot = pivot;
+			rt.offsetMin = offsetMin;
+			rt.offsetMax = offsetMax;
+
+			var img = go.GetComponent<Image>();
+			img.color = Color.clear;
+
+			var handle = go.AddComponent<UIResizeHandle>();
+			handle.target = target;
+			handle.edges = edges;
+		}
+
         public void Clamp(Vector2 position, RectTransform target)
 		{
 			Vector2 newPos = position;
