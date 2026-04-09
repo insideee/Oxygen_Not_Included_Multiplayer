@@ -6,6 +6,7 @@ using UnityEngine.EventSystems;
 public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
 {
     [SerializeField] public RectTransform target;
+    public bool WasDragged { get; private set; }
 
     private Vector2 offset;
 
@@ -23,6 +24,7 @@ public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
 
         RectTransform parent = target.parent as RectTransform;
 
+        WasDragged = false;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position, eventData.pressEventCamera, out Vector2 localMousePosition);
         offset = target.anchoredPosition - localMousePosition;
     }
@@ -34,6 +36,7 @@ public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
         if (target == null)
             return;
 
+        WasDragged = true;
         RectTransform parent = target.parent as RectTransform;
 
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, eventData.position, eventData.pressEventCamera, out Vector2 localMousePosition))

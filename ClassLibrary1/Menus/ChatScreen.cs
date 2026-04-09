@@ -134,6 +134,9 @@ namespace ONI_MP.UI
             expanded = true;
             header.GetComponent<Button>().onClick.AddListener(() =>
             {
+                if (drag.WasDragged)
+                    return;
+
                 expanded = !expanded;
                 chatbox.SetActive(expanded);
                 headerText.text = expanded ? STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT : STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND;
