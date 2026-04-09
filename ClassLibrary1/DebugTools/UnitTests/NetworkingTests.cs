@@ -14,7 +14,7 @@ namespace ONI_MP.DebugTools.UnitTests
             if (NetworkConfig.TransportServer == null)
                 return UnitTestResult.Fail("TransportServer is null");
 
-            if (!MultiplayerSession.IsHost || !MultiplayerSession.IsClient)
+            if (!MultiplayerSession.IsHost && !MultiplayerSession.IsClient)
                 return UnitTestResult.Fail("Server not running yet");
 
             return UnitTestResult.Pass("Server is running");
