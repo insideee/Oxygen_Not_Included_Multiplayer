@@ -31,7 +31,7 @@ namespace ONI_MP.DebugTools
         public void Run()
         {
             HasRun = true;
-            State = TestState.Failed;
+            State = TestState.InProgress;
             Message = null;
 
             var sw = Stopwatch.StartNew();
