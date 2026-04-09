@@ -69,6 +69,7 @@ namespace ONI_MP
 				go.AddComponent<UIVisibilityController>();
 				go.AddComponent<MainThreadExecutor>();
 				go.AddComponent<CursorManager>();
+				go.AddComponent<PingManager>();
 				go.AddComponent<BuildingSyncer>();
 				go.AddComponent<WorldStateSyncer>();
 				go.AddComponent<BulkPacketMonitor>();
