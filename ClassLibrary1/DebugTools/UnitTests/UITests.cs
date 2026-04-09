@@ -10,7 +10,7 @@ namespace ONI_MP.DebugTools.UnitTests
 {
     public static class UITests
     {
-        [UnitTest(category: "UI")]
+        [UnitTest(name: "Chat window exists and is active", category: "UI")]
         public static UnitTestResult ChatWindowExistsAndActive()
         {
             GameObject chatScreen = GameObject.Find("ChatScreen");
@@ -23,7 +23,7 @@ namespace ONI_MP.DebugTools.UnitTests
             return UnitTestResult.Pass("ChatScreen object exists and is active");
         }
 
-        [UnitTest(category: "UI")]
+        [UnitTest(name: "Ping & Trail Initialized", category: "UI")]
         public static UnitTestResult PingAndTrailSystemInitialized()
         {
             if (PingManager.Instance == null)
@@ -31,20 +31,20 @@ namespace ONI_MP.DebugTools.UnitTests
             return UnitTestResult.Pass("PingManager instance exists");
         }
 
-        [UnitTest(category: "UI")]
+        [UnitTest(name: "No ghost cursors present", category: "UI")]
         public static UnitTestResult NoGhostCursorsPresent()
         {
             if (!MultiplayerSession.IsHost && !MultiplayerSession.IsClient)
                 return UnitTestResult.Fail("Not connected to a multiplayer session");
 
-            // We - 1 to factor in our local cursor and client
-            var clients = NetworkConfig.GetConnectedClients().Count - 1;
-            var cursors = MultiplayerSession.PlayerCursors.Count - 1;
+            var clients = NetworkConfig.GetConnectedClients().Count;
+            var cursors = MultiplayerSession.PlayerCursors.Count;
 
-            if(cursors > clients)
+            // - 1 to remove local client
+            if(cursors > clients - 1)
                 return UnitTestResult.Fail($"Number of player cursors ({cursors}) exceeds number of clients ({clients})");
 
-            if (clients != cursors)
+            if (clients - 1 != cursors)
                 return UnitTestResult.Fail($"Number of player cursors ({cursors}) does not match number of clients ({clients})");
 
             bool cursorSyncRunning = CursorManager.Instance != null && Utils.IsInGame() && MultiplayerSession.InSession && MultiplayerSession.LocalUserID.IsValid();
