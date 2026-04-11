@@ -102,7 +102,7 @@ namespace ONI_MP.Networking
 			NetworkConfig.TransportClient.OnReturnToMenu = (reason, message) => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle(reason, message));
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
-                PacketSender.SendToHost(new GameStateRequestPacket(MultiplayerSession.LocalUserID));
+                PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
                 MP_Timer.Instance.StartDelayedAction(10, () => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle()));
             };
             NetworkConfig.TransportClient.Prepare();
@@ -178,6 +178,19 @@ namespace ONI_MP.Networking
 
 			DebugConsole.Log("Gamestate packet received");
 			MP_Timer.Instance.Abort();
+			if (!TryValidateHostProtocol(packet, out string protocolReason, out string protocolMessage))
+			{
+				DebugConsole.LogWarning($"[GameClient] Host protocol validation failed: {protocolReason} | {protocolMessage}");
+				Disconnect();
+				NetworkConfig.TransportClient.OnReturnToMenu.Invoke(protocolReason, protocolMessage);
+				return;
+			}
+
+			if (MultiplayerSession.GetPlayer(MultiplayerSession.HostUserID) is MultiplayerPlayer host)
+			{
+				host.ProtocolVerified = true;
+			}
+
 			if (!SaveHelper.SavegameDlcListValid(packet.ActiveDlcIds, out var errorMsg))
 			{
 				DebugConsole.Log("invalid dlc config detected");
@@ -208,6 +221,42 @@ namespace ONI_MP.Networking
 			}
 
 			ContinueConnectionFlow();
+		}
+
+		private static bool TryValidateHostProtocol(GameStateRequestPacket packet, out string reason, out string message)
+		{
+			using var _ = Profiler.Scope();
+
+			reason = "Protocol mismatch";
+			message = string.Empty;
+
+			if (!packet.HasProtocolMetadata)
+			{
+				message = "The host is running a build without protocol metadata. Update both peers to the same build.";
+				return false;
+			}
+
+			if (!packet.ProtocolAccepted)
+			{
+				message = string.IsNullOrEmpty(packet.ProtocolFailureReason)
+					? "The host rejected this client due to an incompatible network protocol."
+					: packet.ProtocolFailureReason;
+				return false;
+			}
+
+			if (packet.ProtocolVersion != ProtocolCompatibility.CurrentProtocolVersion)
+			{
+				message = $"Host protocol={packet.ProtocolVersion}, client protocol={ProtocolCompatibility.CurrentProtocolVersion}.";
+				return false;
+			}
+
+			if (packet.PacketRegistryFingerprint != ProtocolCompatibility.PacketFingerprint)
+			{
+				message = $"Host packet fingerprint={packet.PacketRegistryFingerprint}, client fingerprint={ProtocolCompatibility.PacketFingerprint}.";
+				return false;
+			}
+
+			return true;
 		}
 		static void BackToMainMenu()
 		{
@@ -413,4 +462,3 @@ namespace ONI_MP.Networking
 		}
 	}
 }
-

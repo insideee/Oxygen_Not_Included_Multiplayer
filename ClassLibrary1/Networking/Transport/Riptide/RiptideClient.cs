@@ -122,15 +122,7 @@ namespace ONI_MP.Networking.Transport.Lan
             DebugConsole.Log($"[Riptide] Connected to server with Client ID: {CLIENT_ID}");
 
             //CoroutineRunner.RunOne(Handshake());
-
-            if (Utils.IsInGame())
-            {
-                NetworkConfig.TransportClient.OnContinueConnectionFlow.Invoke();
-            }
-            else
-            {
-                NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
-            }
+            NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
         }
 
         private void OnDisconnectedFromServer(object sender, DisconnectedEventArgs e)

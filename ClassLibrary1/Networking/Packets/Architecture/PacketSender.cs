@@ -199,6 +199,23 @@ namespace ONI_MP.Networking
 			return SendToConnection(player.Connection, packet, sendType);
 		}
 
+		private static bool CanBroadcastTo(MultiplayerPlayer player)
+		{
+			using var _ = Profiler.Scope();
+
+			if (player == null || player.Connection == null)
+			{
+				return false;
+			}
+
+			if (!MultiplayerSession.IsHost || player.PlayerId == MultiplayerSession.HostUserID)
+			{
+				return true;
+			}
+
+			return player.ProtocolVerified;
+		}
+
 		public static void SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
 		{
 			using var _ = Profiler.Scope();
@@ -221,7 +238,7 @@ namespace ONI_MP.Networking
 				if (exclude.HasValue && player.PlayerId == exclude.Value)
 					continue;
 
-				if (player.Connection != null)
+				if (CanBroadcastTo(player))
 					SendToConnection(player.Connection, packet, sendType);
 			}
 		}
@@ -247,7 +264,7 @@ namespace ONI_MP.Networking
 				if (excludedIds != null && excludedIds.Contains(player.PlayerId))
 					continue;
 
-				if (player.Connection != null)
+				if (CanBroadcastTo(player))
 					SendToConnection(player.Connection, packet, sendType);
 			}
 		}

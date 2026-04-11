@@ -13,12 +13,14 @@ public class MultiplayerPlayer
 	//public HSteamNetConnection? Connection { get; set; } = null;
 	public object? Connection { get; set; } = null;
 	public bool IsConnected => Connection != null;
+	public bool ProtocolVerified { get; set; }
 
 	public ClientReadyState readyState = ClientReadyState.Ready;
 
     public MultiplayerPlayer(ulong playerId)
 	{
 		PlayerId = playerId;
+		ProtocolVerified = IsLocal;
 		if(NetworkConfig.IsLanConfig())
 		{
             PlayerName = $"Player {playerId}";

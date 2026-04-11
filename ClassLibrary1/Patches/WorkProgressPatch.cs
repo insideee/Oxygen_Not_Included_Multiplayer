@@ -21,24 +21,33 @@ public static class WorkProgressPatch
 		if (__instance.IsNullOrDestroyed())
 			return;
 
-		if (__instance is not Constructable && __instance is not Deconstructable)
+		if (ShouldSkip(__instance))
 			return;
 
 		float workTime = __instance.GetWorkTime();
-		if (workTime <= 0f || float.IsInfinity(workTime))
+		if (workTime <= 0f || float.IsInfinity(workTime) || float.IsNaN(workTime))
 			return;
 
-		if (__instance.GetPercentComplete() < 0f)
+		float percentComplete = __instance.GetPercentComplete();
+		if (float.IsNaN(percentComplete) || float.IsInfinity(percentComplete))
 			return;
 
-		int cell = Grid.PosToCell(__instance.transform.position);
+		int workableNetId = __instance.GetNetId();
+		if (workableNetId == 0)
+			return;
+
+		string workableType = __instance.GetType().AssemblyQualifiedName;
+		if (string.IsNullOrEmpty(workableType))
+			return;
+
+		int trackingKey = GetTrackingKey(workableNetId, workableType);
 		float now = Time.time;
 
-		if (nextSendTime.TryGetValue(cell, out float next) && now < next)
+		if (nextSendTime.TryGetValue(trackingKey, out float next) && now < next)
 			return;
 
-		nextSendTime[cell] = now + SEND_INTERVAL;
-		PacketSender.SendToAllClients(new WorkProgressPacket(cell, __instance.WorkTimeRemaining));
+		nextSendTime[trackingKey] = now + SEND_INTERVAL;
+		PacketSender.SendToAllClients(new WorkableProgressPacket(__instance), PacketSendMode.Unreliable);
 	}
 
 	public static void ClearTracking()
@@ -46,5 +55,17 @@ public static class WorkProgressPatch
 		using var _ = Profiler.Scope();
 
 		nextSendTime.Clear();
+	}
+
+	private static bool ShouldSkip(Workable workable)
+	{
+		return workable is DefragmentationZone
+			|| workable.GetType().Name == "RancherWorkable"
+			|| workable is LiquidPumpingStation;
+	}
+
+	private static int GetTrackingKey(int workableNetId, string workableType)
+	{
+		return unchecked((workableNetId * 397) ^ workableType.GetHashCode());
 	}
 }
