@@ -87,7 +87,9 @@ namespace ONI_MP.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (AvailableOptions == null || AvailableOptions.Count == 0 || instance == null)
+            if (instance.Telepad == null) return;
+
+            if (AvailableOptions == null || AvailableOptions.Count == 0 || instance == null)
 			{
 				DebugConsole.LogWarning($"[ImmigrantScreen] ApplyOptionsToScreen: Cannot apply - Options:{AvailableOptions?.Count ?? 0}, Screen:{(instance != null ? "valid" : "null")}");
 				return;
@@ -190,7 +192,9 @@ namespace ONI_MP.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			string role = MultiplayerSession.IsHost ? "Host" : "Client";
+            if (__instance.Telepad == null) return;
+
+            string role = MultiplayerSession.IsHost ? "Host" : "Client";
 			DebugConsole.Log($"[ImmigrantScreen] {role}: Capturing options from containers...");
 
 			// Get containers from ImmigrantScreen (inherited from CharacterSelectionController)
@@ -257,7 +261,9 @@ namespace ONI_MP.Patches.GamePatches
 				return true;
 			}
 
-			ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
+            if (__instance.Telepad == null) return true;
+
+            ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
 
 			var packet = new ImmigrantSelectionPacket { selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selectedDeliverable), PrintingPodWorldIndex = __instance.Telepad?.GetMyWorldId() ?? 0 };
 			PacketSender.SendToHost(packet);
@@ -300,7 +306,9 @@ namespace ONI_MP.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return true;
+            if (__instance.Telepad == null) return true;
+
+            if (!MultiplayerSession.InSession) return true;
 
 			DebugConsole.Log("[ImmigrantScreen] Reject All clicked");
 

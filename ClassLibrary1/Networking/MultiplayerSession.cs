@@ -57,7 +57,12 @@ namespace ONI_MP.Networking
 			DebugConsole.Log($"[MultiplayerSession] Host set to: {host}");
 		}
 
-		public static MultiplayerPlayer GetPlayer(ulong id)
+        /// <summary>
+        /// HOST ONLY - Get the multiplayer instance of the player with the given ID. Returns null if not found
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public static MultiplayerPlayer GetPlayer(ulong id)
 		{
 			using var _ = Profiler.Scope();
 
