@@ -72,6 +72,7 @@ namespace ONI_MP
 				go.AddComponent<PingManager>();
 				go.AddComponent<BuildingSyncer>();
 				go.AddComponent<WorldStateSyncer>();
+				go.AddComponent<PlantGrowthSyncer>();
 				go.AddComponent<BulkPacketMonitor>();
 
 				// CHECKPOINT 5

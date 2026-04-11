@@ -2,6 +2,7 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -66,47 +67,111 @@ namespace ONI_MP.Networking.Packets.Animation
 			if (MultiplayerSession.IsHost)
 				return;
 
-			if (!NetworkIdentityRegistry.TryGetComponent<StandardWorker>(WorkerNetId, out var worker))
+			if (TryApply())
 				return;
 
-			GameObject workableGO = null;
-			if (StartingToWork)
+			if (StartingToWork && Game.Instance != null)
 			{
-				if (!NetworkIdentityRegistry.TryGetComponent<Workable>(WorkableNetId, out var protoWorkable))
-					return;
+				Game.Instance.StartCoroutine(RetryStartWork(Clone()));
+			}
+		}
 
-				workableGO = protoWorkable.gameObject;
+		private bool TryApply(bool logFailure = false)
+		{
+			using var _ = Profiler.Scope();
 
-				var workableType = AccessTools.TypeByName(WorkableType);
-				if(workableType == null)
+			if (!NetworkIdentityRegistry.TryGetComponent<StandardWorker>(WorkerNetId, out var worker))
+			{
+				if (logFailure)
+				{
+					DebugConsole.LogWarning($"[StandardWorker_WorkingState_Packet] Could not find worker {WorkerNetId}");
+				}
+				return false;
+			}
+
+			GameObject workableGO = null;
+			if (!StartingToWork)
+			{
+				worker.StopWork();
+				DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": stopped working");
+				return true;
+			}
+
+			if (!NetworkIdentityRegistry.TryGetComponent<Workable>(WorkableNetId, out var protoWorkable))
+			{
+				if (logFailure)
+				{
+					DebugConsole.LogWarning($"[StandardWorker_WorkingState_Packet] Could not resolve workable {WorkableNetId} for worker {worker.name}");
+				}
+				return false;
+			}
+
+			workableGO = protoWorkable.gameObject;
+
+			var workableType = AccessTools.TypeByName(WorkableType);
+			if (workableType == null)
+			{
+				if (logFailure)
 				{
 					DebugConsole.LogWarning("Could not find workable type " + WorkableType);
 				}
+				return false;
+			}
 
-				var targetWorkableCmp = workableGO.GetComponent(workableType);
-				if (targetWorkableCmp == null || targetWorkableCmp is not Workable workable)
+			var targetWorkableCmp = workableGO.GetComponent(workableType);
+			if (targetWorkableCmp == null || targetWorkableCmp is not Workable workable)
+			{
+				if (logFailure)
 				{
 					DebugConsole.LogWarning("Could not find workable of type " + WorkableType + " on " + workableGO.GetProperName());
-					return;
 				}
+				return false;
+			}
 
-				try
+			try
+			{
+				if (!worker.state.Equals(StandardWorker.State.Idle))
 				{
-					if (!worker.state.Equals(StandardWorker.State.Idle))
-					{
-						worker.StopWork();
-					}
-					worker.StartWork(new(workable));
+					worker.StopWork();
 				}
-				catch (System.Exception ex)
+				worker.StartWork(new(workable));
+			}
+			catch (System.Exception ex)
+			{
+				if (logFailure)
 				{
 					DebugConsole.LogWarning($"[StandardWorker_WorkingState_Packet] StartWork failed for {worker.name} on {workableGO.name}: {ex.GetType().Name}");
 				}
-            }
-			else
-				worker.StopWork();
+				return false;
+			}
 
-			DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": " + (StartingToWork ? "Started working on " + workableGO.name : "stopped working"));
+			DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": Started working on " + workableGO.name);
+			return true;
+		}
+
+		private StandardWorker_WorkingState_Packet Clone()
+		{
+			return new StandardWorker_WorkingState_Packet
+			{
+				WorkerNetId = WorkerNetId,
+				WorkableNetId = WorkableNetId,
+				WorkableType = WorkableType,
+				StartingToWork = StartingToWork
+			};
+		}
+
+		private static IEnumerator RetryStartWork(StandardWorker_WorkingState_Packet packet)
+		{
+			for (int attempt = 0; attempt < 10; attempt++)
+			{
+				yield return null;
+
+				if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+					yield break;
+
+				if (packet.TryApply(logFailure: attempt == 9))
+					yield break;
+			}
 		}
 	}
 }
