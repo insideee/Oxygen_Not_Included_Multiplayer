@@ -125,6 +125,8 @@ namespace ONI_MP.DebugTools.UnitTests
 					continue;
 				if (!id.gameObject.TryGetComponent<AnimStateSyncer>(out var _))
 					return UnitTestResult.Fail($"Entity '{id.gameObject.name}' is missing AnimStateSyncer");
+				if (!AnimSyncEligibility.IsAnimatedNonMinion(id.gameObject))
+					return UnitTestResult.Fail($"Entity '{id.gameObject.name}' should not have AnimStateSyncer");
 
 				return UnitTestResult.Pass($"Entity '{id.gameObject.name}' is sync-eligible");
 			}

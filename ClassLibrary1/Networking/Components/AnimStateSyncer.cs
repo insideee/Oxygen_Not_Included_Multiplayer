@@ -4,10 +4,8 @@ using UnityEngine;
 
 namespace ONI_MP.Networking.Components
 {
-	public class AnimStateSyncer : KMonoBehaviour
+	public class AnimStateSyncer : KMonoBehaviour, IRender1000ms
 	{
-		private const float SendInterval = 1f;
-		private const float InitialDelay = 5f;
 		private const float ElapsedBucketSize = 0.15f;
 
 		[MyCmpGet]
@@ -17,13 +15,11 @@ namespace ONI_MP.Networking.Components
 		[MyCmpGet]
 		private KPrefabID prefabId;
 
-		private bool _initialized;
-		private float _initializationTime;
-		private float _lastSendTime;
 		private int _lastSentAnimHash;
 		private byte _lastSentMode;
 		private float _lastSentSpeed = 1f;
 		private int _lastSentElapsedBucket = int.MinValue;
+		private bool _hasSentSnapshot;
 
 		public override void OnSpawn()
 		{
@@ -37,20 +33,14 @@ namespace ONI_MP.Networking.Components
 				return;
 			}
 
-			if (prefabId.HasTag(GameTags.BaseMinion))
-			{
-				enabled = false;
-				return;
-			}
-
-			if (!prefabId.HasTag(GameTags.Creature) && GetComponent<BuildingComplete>() == null)
+			if (!AnimSyncEligibility.IsAnimatedNonMinion(gameObject))
 			{
 				enabled = false;
 				return;
 			}
 		}
 
-		private void Update()
+		public void Render1000ms(float dt)
 		{
 			using var _ = Profiler.Scope();
 
@@ -60,29 +50,23 @@ namespace ONI_MP.Networking.Components
 			if (MultiplayerSession.ConnectedPlayers.Count == 0)
 				return;
 
-			if (!_initialized)
-			{
-				_initializationTime = Time.unscaledTime;
-				_initialized = true;
-				return;
-			}
-
-			if (Time.unscaledTime - _initializationTime < InitialDelay)
-				return;
-
-			float currentTime = Time.unscaledTime;
-			if (currentTime - _lastSendTime < SendInterval)
-				return;
-
-			SendSnapshot(currentTime);
+			SendSnapshot();
 		}
 
-		private void SendSnapshot(float currentTime)
+		private void SendSnapshot()
 		{
 			using var _ = Profiler.Scope();
 
 			try
 			{
+				if (networkIdentity.NetId == 0)
+				{
+					// Late-spawned entities may not have a NetId on the first render tick.
+					networkIdentity.RegisterIdentity();
+					if (networkIdentity.NetId == 0)
+						return;
+				}
+
 				if (animController.CurrentAnim == null)
 					return;
 
@@ -90,22 +74,36 @@ namespace ONI_MP.Networking.Components
 				if (animHash == 0)
 					return;
 
-				_lastSentAnimHash = animHash;
-				_lastSentMode = (byte)animController.mode;
-				_lastSentSpeed = animController.playSpeed;
-				_lastSentElapsedBucket = Mathf.RoundToInt(animController.GetElapsedTime() / ElapsedBucketSize);
-				_lastSendTime = currentTime;
+				byte mode = (byte)animController.mode;
+				float speed = animController.playSpeed;
+				int elapsedBucket = Mathf.RoundToInt(animController.GetElapsedTime() / ElapsedBucketSize);
+
+				if (_hasSentSnapshot
+					&& animHash == _lastSentAnimHash
+					&& _lastSentMode == mode
+					&& Mathf.Approximately(_lastSentSpeed, speed)
+					&& _lastSentElapsedBucket == elapsedBucket)
+				{
+					// Only resend when the anim state changes buckets to keep per-entity traffic bounded.
+					return;
+				}
 
 				var packet = new AnimSyncPacket
 				{
 					NetId = networkIdentity.NetId,
-					AnimHash = _lastSentAnimHash,
-					Mode = _lastSentMode,
-					Speed = _lastSentSpeed,
-					ElapsedTime = _lastSentElapsedBucket * ElapsedBucketSize
+					AnimHash = animHash,
+					Mode = mode,
+					Speed = speed,
+					ElapsedTime = elapsedBucket * ElapsedBucketSize
 				};
 
 				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
+
+				_lastSentAnimHash = packet.AnimHash;
+				_lastSentMode = packet.Mode;
+				_lastSentSpeed = packet.Speed;
+				_lastSentElapsedBucket = Mathf.RoundToInt(packet.ElapsedTime / ElapsedBucketSize);
+				_hasSentSnapshot = true;
 			}
 			catch (System.Exception)
 			{
