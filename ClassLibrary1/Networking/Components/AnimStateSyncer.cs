@@ -4,22 +4,18 @@ using UnityEngine;
 
 namespace ONI_MP.Networking.Components
 {
-	public class AnimStateSyncer : KMonoBehaviour, IRender1000ms
+	public class AnimStateSyncer : KMonoBehaviour
 	{
-		private const float ElapsedBucketSize = 0.15f;
-
 		[MyCmpGet]
 		private NetworkIdentity networkIdentity;
 		[MyCmpGet]
 		private KBatchedAnimController animController;
 		[MyCmpGet]
 		private KPrefabID prefabId;
+		[MyCmpGet]
+		private Operational operational;
 
-		private int _lastSentAnimHash;
-		private byte _lastSentMode;
-		private float _lastSentSpeed = 1f;
-		private int _lastSentElapsedBucket = int.MinValue;
-		private bool _hasSentSnapshot;
+		private bool _hasReceivedSnapshot;
 
 		public override void OnSpawn()
 		{
@@ -38,76 +34,95 @@ namespace ONI_MP.Networking.Components
 				enabled = false;
 				return;
 			}
+
+			AnimSyncCoordinator.Register(this);
 		}
 
-		public void Render1000ms(float dt)
+		public override void OnCleanUp()
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsClient)
-				return;
-
-			if (MultiplayerSession.ConnectedPlayers.Count == 0)
-				return;
-
-			SendSnapshot();
+			AnimSyncCoordinator.Unregister(this);
+			base.OnCleanUp();
 		}
 
-		private void SendSnapshot()
+		internal bool TryBuildSnapshot(out AnimSyncPacket packet, out int activityKey)
 		{
 			using var _ = Profiler.Scope();
+
+			packet = null;
+			activityKey = 0;
 
 			try
 			{
 				if (networkIdentity.NetId == 0)
 				{
-					// Late-spawned entities may not have a NetId on the first render tick.
+					// Late-spawned entities may not have a NetId on the first coordinator tick.
 					networkIdentity.RegisterIdentity();
 					if (networkIdentity.NetId == 0)
-						return;
+						return false;
 				}
 
 				if (animController.CurrentAnim == null)
-					return;
+					return false;
 
 				int animHash = animController.currentAnim.hash;
 				if (animHash == 0)
-					return;
+					return false;
 
 				byte mode = (byte)animController.mode;
 				float speed = animController.playSpeed;
-				int elapsedBucket = Mathf.RoundToInt(animController.GetElapsedTime() / ElapsedBucketSize);
+				float elapsedTime = animController.GetElapsedTime();
 
-				if (_hasSentSnapshot
-					&& animHash == _lastSentAnimHash
-					&& _lastSentMode == mode
-					&& Mathf.Approximately(_lastSentSpeed, speed)
-					&& _lastSentElapsedBucket == elapsedBucket)
-				{
-					// Only resend when the anim state changes buckets to keep per-entity traffic bounded.
-					return;
-				}
-
-				var packet = new AnimSyncPacket
+				packet = new AnimSyncPacket
 				{
 					NetId = networkIdentity.NetId,
 					AnimHash = animHash,
 					Mode = mode,
 					Speed = speed,
-					ElapsedTime = elapsedBucket * ElapsedBucketSize
+					ElapsedTime = elapsedTime
 				};
 
-				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-
-				_lastSentAnimHash = packet.AnimHash;
-				_lastSentMode = packet.Mode;
-				_lastSentSpeed = packet.Speed;
-				_lastSentElapsedBucket = Mathf.RoundToInt(packet.ElapsedTime / ElapsedBucketSize);
-				_hasSentSnapshot = true;
+				activityKey = BuildActivityKey(animHash, mode, speed);
+				return true;
 			}
 			catch (System.Exception)
 			{
-				// Anim state may not be ready yet.
+				return false;
+			}
+		}
+
+		public void MarkSnapshotReceived()
+		{
+			using var _ = Profiler.Scope();
+
+			_hasReceivedSnapshot = true;
+		}
+
+		private int BuildActivityKey(int animHash, byte mode, float speed)
+		{
+			using var _ = Profiler.Scope();
+
+			int operationalMask = 0;
+			if (operational != null)
+			{
+				if (operational.IsOperational)
+					operationalMask |= 1;
+				if (operational.IsActive)
+					operationalMask |= 2;
+				if (operational.IsFunctional)
+					operationalMask |= 4;
+			}
+
+			int speedKey = Mathf.RoundToInt(speed * 100f);
+
+			unchecked
+			{
+				int key = animHash;
+				key = (key * 397) ^ mode;
+				key = (key * 397) ^ speedKey;
+				key = (key * 397) ^ operationalMask;
+				return key;
 			}
 		}
 	}

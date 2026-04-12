@@ -55,6 +55,9 @@ namespace ONI_MP.Networking.Packets.Animation
 				Speed,
 				ElapsedTime,
 				nameof(AnimSyncPacket));
+
+			if (kbac.TryGetComponent<AnimStateSyncer>(out var syncer))
+				syncer.MarkSnapshotReceived();
 		}
 	}
 }

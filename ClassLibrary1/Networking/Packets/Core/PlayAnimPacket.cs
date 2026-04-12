@@ -137,6 +137,8 @@ public class PlayAnimPacket : IPacket
 
 		}
 		ForceAnimUpdate(kbac);
+		if (go.TryGetComponent<AnimStateSyncer>(out var syncer))
+			syncer.MarkSnapshotReceived();
 		// Force updates for animation to tick properly
 	}
 
