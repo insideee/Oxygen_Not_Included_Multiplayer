@@ -1,22 +1,17 @@
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
-using Shared.Interfaces.Networking;
 using Shared.Profiling;
 using System.IO;
 
 namespace ONI_MP.Networking.Packets.Animation
 {
-	internal class AnimSyncPacket : IPacket, IBulkablePacket
+	internal class AnimSyncPacket : IPacket
 	{
 		public int NetId;
 		public int AnimHash;
 		public byte Mode;
 		public float Speed;
 		public float ElapsedTime;
-
-		public int MaxPackSize => 1;
-
-		public uint IntervalMs => 1000;
 
 		public void Serialize(BinaryWriter writer)
 		{

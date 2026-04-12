@@ -3,6 +3,8 @@ using System.Linq;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Animation;
+using ONI_MP.Networking.Packets.Core;
+using Shared.Interfaces.Networking;
 
 namespace ONI_MP.DebugTools.UnitTests
 {
@@ -98,6 +100,17 @@ namespace ONI_MP.DebugTools.UnitTests
 				return UnitTestResult.Fail("Packet float fields did not roundtrip");
 
 			return UnitTestResult.Pass("AnimSyncPacket serialize/deserialize roundtrip succeeded");
+		}
+
+		[UnitTest(name: "Anim packets: bypass bulk queue", category: "Animation")]
+		public static UnitTestResult AnimPacketsBypassBulkQueue()
+		{
+			bool animSyncBulk = typeof(IBulkablePacket).IsAssignableFrom(typeof(AnimSyncPacket));
+			bool playAnimBulk = typeof(IBulkablePacket).IsAssignableFrom(typeof(PlayAnimPacket));
+			if (animSyncBulk || playAnimBulk)
+				return UnitTestResult.Fail("Animation packets still route through the bulk queue");
+
+			return UnitTestResult.Pass("AnimSyncPacket and PlayAnimPacket send directly");
 		}
 
 		[UnitTest(name: "Anim sync: non-minion entities discoverable", category: "Animation")]
