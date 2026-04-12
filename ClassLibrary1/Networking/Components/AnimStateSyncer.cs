@@ -6,6 +6,8 @@ namespace ONI_MP.Networking.Components
 {
 	public class AnimStateSyncer : KMonoBehaviour
 	{
+		private const float MissingSnapshotRetryDelay = 3f;
+
 		[MyCmpGet]
 		private NetworkIdentity networkIdentity;
 		[MyCmpGet]
@@ -15,13 +17,20 @@ namespace ONI_MP.Networking.Components
 		[MyCmpGet]
 		private Operational operational;
 
+		private float _spawnTime;
 		private bool _hasReceivedSnapshot;
+
+		public int NetId => networkIdentity != null ? networkIdentity.NetId : 0;
+
+		public bool HasReceivedSnapshot => MultiplayerSession.IsHost || _hasReceivedSnapshot;
 
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
 
 			base.OnSpawn();
+
+			_spawnTime = Time.unscaledTime;
 
 			if (networkIdentity == null || animController == null || prefabId == null)
 			{
@@ -104,6 +113,28 @@ namespace ONI_MP.Networking.Components
 			using var _ = Profiler.Scope();
 
 			return Grid.PosToCell(gameObject);
+		}
+
+		public bool IsVisibleIn(RectInt viewport)
+		{
+			using var _ = Profiler.Scope();
+
+			int cell = GetGridCell();
+			if (!Grid.IsValidCell(cell))
+				return false;
+
+			Grid.CellToXY(cell, out int x, out int y);
+			return x >= viewport.xMin
+				&& x < viewport.xMax
+				&& y >= viewport.yMin
+				&& y < viewport.yMax;
+		}
+
+		public bool NeedsInitialSnapshot()
+		{
+			using var _ = Profiler.Scope();
+
+			return !HasReceivedSnapshot && Time.unscaledTime - _spawnTime >= MissingSnapshotRetryDelay;
 		}
 
 		private int BuildActivityKey(int animHash, byte mode, float speed)

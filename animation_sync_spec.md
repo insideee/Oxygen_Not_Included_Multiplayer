@@ -15,21 +15,23 @@ AFTER:
 
   Critters:
     Host -> PlayAnimPacket -> Client        (event-driven once they have NetId)
-    Host -> AnimSyncPacket -> Client        every 1000ms
+    Host -> AnimSyncCoordinator shard scan   every 200ms
+    Host -> AnimSyncPacket -> Client        visible 5s / active 10s / request-based
 
   Animated buildings:
-    Host -> AnimSyncPacket -> Client        every 1000ms
+    Host -> AnimSyncCoordinator shard scan   every 200ms
+    Host -> AnimSyncPacket -> Client        visible 5s / active 10s / request-based
 ```
 
-This change stays inside the author's current state-sync model. It adds periodic animation reconciliation on top of existing event-driven packets. It does not touch the transport layer, does not change `BuildingSyncer`, and does not revive `DuplicantClientController` or `NavigatorTransitionPacket`.
+This change stays inside the author's current state-sync model. It adds host-driven animation reconciliation on top of existing event-driven packets. It does not touch the transport layer, does not change `BuildingSyncer`, and does not revive `DuplicantClientController` or `NavigatorTransitionPacket`.
 
 ## 2. SCOPE MATRIX
 
 | Entity type | Event-driven packet | Periodic packet | Interval |
 |-------------|---------------------|-----------------|----------|
 | Minions | `PlayAnimPacket` | `DuplicantStatePacket` | 200ms checks, 1000ms heartbeat |
-| Critters | `PlayAnimPacket` | `AnimSyncPacket` | 1000ms |
-| Animated buildings | none | `AnimSyncPacket` | 1000ms |
+| Critters | `PlayAnimPacket` | `AnimSyncPacket` | coordinator scan every 200ms, visible 5s, active 10s, on-demand |
+| Animated buildings | none | `AnimSyncPacket` | coordinator scan every 200ms, visible 5s, active 10s, on-demand |
 
 Only entities with both `NetworkIdentity` and `KBatchedAnimController` participate. Buildings are included only when they are animated, network-identifiable, and known to switch between active/inactive-style animations.
 
@@ -51,7 +53,7 @@ Minion reconciliation uses:
 
 This branch keeps the current packet-shape change as-is. Host and clients must run the same mod version. If the protocol-gating branch lands first, animation packets inherit that verification automatically.
 
-### `AnimSyncPacket` (critters and animated buildings, every 1000ms)
+### `AnimSyncPacket` (critters and animated buildings, correction snapshot)
 
 `AnimSyncPacket` is a compact periodic reconciliation packet sent directly as `Unreliable`:
 
@@ -61,7 +63,7 @@ This branch keeps the current packet-shape change as-is. Host and clients must r
 - `Speed` (`float`)
 - `ElapsedTime` (`float`)
 
-The packet is emitted by a host-side `AnimStateSyncer` component attached only to eligible non-minion animated entities.
+The packet is emitted by a host-side `AnimSyncCoordinator`. `AnimStateSyncer` remains attached to eligible non-minion entities, but only as a lightweight snapshot provider and registry hook.
 
 ## 4. RECONCILIATION RULES
 
@@ -80,6 +82,10 @@ Both packet paths use the same reconciliation policy:
 - The transport layer stays untouched.
 - `BuildingSyncer` keeps its existing 30s full-state building reconciliation behavior.
 - `PlayAnimPacket` stays event-driven but bypasses the broken bulk path so it preserves the requested send semantics.
+- `AnimSyncCoordinator` replaces per-entity heartbeats with a shared 200ms shard scheduler.
+- `AnimSyncPacket` is only sent when an entity is visible to at least one client, was recently active, or was explicitly requested by a client resync packet.
+- `AnimResyncRequestPacket` is an exception path for join-in-progress and missing initial snapshots, not a standing polling loop.
+- Steam hosts back off non-minion correction cadence when pending unreliable bytes or queue time rise above the configured thresholds.
 - `DuplicantClientController` remains commented out.
 - `NavigatorTransitionPacket` remains commented out.
 - The client still runs local animation code; periodic reconciliation is the safety net instead of a hard client-side animation gate.
@@ -95,10 +101,16 @@ Both packet paths use the same reconciliation policy:
   - Resolves elapsed-time setters once.
   - Applies shared replay/drift correction logic.
 - `AnimSyncPacket.cs`
-  - New periodic non-minion animation reconciliation packet sent directly as `Unreliable`.
+  - New non-minion animation correction snapshot sent directly as `Unreliable`.
 - `AnimStateSyncer.cs`
-  - Host-side sender for critters and selected animated buildings.
-  - Uses `IRender1000ms` and cached state instead of per-frame `Update()`.
+  - Lightweight registry and snapshot provider for critters and selected animated buildings.
+- `AnimSyncCoordinator.cs`
+  - Host-only shard scheduler for non-minion animation correction.
+  - Uses visibility, recent-activity, request-based resync, and Steam queue backoff.
+- `AnimResyncRequester.cs`
+  - Client-side join and retry requester for visible animated entities that still need their first authoritative snapshot.
+- `AnimResyncRequestPacket.cs`
+  - Lightweight client->host request for targeted non-minion animation correction.
 - `EntityTemplatesPatch.cs`
   - Gives animated critter prefabs `NetworkIdentity` and `AnimStateSyncer` without template-time registration.
 - `BuildingSpawnPatch.cs`
@@ -119,8 +131,8 @@ Both packet paths use the same reconciliation policy:
 ## 8. ACCEPTANCE
 
 - Minion wrong-animation desync self-heals on the next state-changing packet or within one 1000ms heartbeat.
-- Critter wrong-animation desync self-heals within one 1000ms sync interval with no 5s warmup delay.
-- Animated-building wrong-animation desync self-heals within one 1000ms sync interval with no 5s warmup delay.
+- Critter wrong-animation desync self-heals immediately on `PlayAnimPacket`, within 5s while visible, or faster when the client requests an initial snapshot after joining.
+- Animated-building wrong-animation desync self-heals within 5s while visible, within 10s when recently active off-screen, or on the next targeted resync request.
 - Drift-only desync snaps elapsed time without replaying a different animation.
 - Entities without `NetworkIdentity` or `KBatchedAnimController` fail closed with no crash.
-- Join-in-progress clients converge without re-enabling transition playback code.
+- Join-in-progress clients converge via targeted visible-entity resync without re-enabling transition playback code.
