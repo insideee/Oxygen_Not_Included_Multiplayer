@@ -23,17 +23,11 @@ namespace ONI_MP.Patches.Critters
 				if (__result == null)
 					return;
 
-				if (!__result.HasTag(GameTags.Creature))
+				if (!AnimSyncEligibility.IsAnimatedCritter(__result))
 					return;
 
 				__result.AddOrGet<EntityPositionHandler>();
-
-				var kbac = __result.GetComponent<KBatchedAnimController>();
-				if (kbac == null)
-					return;
-
-				var identity = __result.AddOrGet<NetworkIdentity>();
-				identity.RegisterIdentity();
+				__result.AddOrGet<NetworkIdentity>();
 				__result.AddOrGet<AnimStateSyncer>();
 			}
 		}

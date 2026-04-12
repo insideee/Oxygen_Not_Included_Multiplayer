@@ -21,7 +21,7 @@ namespace ONI_MP.Patches.World
 			// Let's focus on BuildingComplete for settings sync.
 			if (!(__instance is BuildingComplete)) return;
 
-			bool hasAnimController = go.GetComponent<KBatchedAnimController>() != null;
+			bool isAnimatedBuildingCandidate = AnimSyncEligibility.IsAnimatedBuilding(go);
 			bool needsIdentity = false;
 
 			// Check for components that require NetID
@@ -40,7 +40,7 @@ namespace ONI_MP.Patches.World
 			else if (go.GetComponent<StorageLocker>() != null) needsIdentity = true;
 			else if (go.GetComponent<Refrigerator>() != null) needsIdentity = true;
 			else if (go.GetComponent<RationBox>() != null) needsIdentity = true;
-			else if (hasAnimController) needsIdentity = true;
+			else if (isAnimatedBuildingCandidate) needsIdentity = true;
 
 			if (needsIdentity)
 			{
@@ -49,9 +49,6 @@ namespace ONI_MP.Patches.World
 				// even if the component was already there but not registered.
 				identity.RegisterIdentity();
 			}
-
-			if (hasAnimController)
-				go.AddOrGet<AnimStateSyncer>();
 		}
 	}
 }
