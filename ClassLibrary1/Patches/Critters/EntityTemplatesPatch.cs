@@ -11,28 +11,31 @@ using UnityEngine;
 
 namespace ONI_MP.Patches.Critters
 {
-    internal class EntityTemplatesPatch
-    {
-        [HarmonyPatch(typeof(EntityTemplates), nameof(EntityTemplates.ExtendEntityToBasicCreature), new Type[] { typeof(bool), typeof(GameObject), typeof(string), typeof(string), typeof(string), typeof(FactionManager.FactionID), typeof(string), typeof(string), typeof(NavType), typeof(int), typeof(float), typeof(string), typeof(float), typeof(bool), typeof(bool), typeof(float), typeof(float), typeof(float), typeof(float) })]
-        public static class ExtendEntityToBasicCreature_Patch
-        {
-            public static void Postfix(GameObject __result)
-            {
-                using var _ = Profiler.Scope();
+	internal class EntityTemplatesPatch
+	{
+		[HarmonyPatch(typeof(EntityTemplates), nameof(EntityTemplates.ExtendEntityToBasicCreature), new Type[] { typeof(bool), typeof(GameObject), typeof(string), typeof(string), typeof(string), typeof(FactionManager.FactionID), typeof(string), typeof(string), typeof(NavType), typeof(int), typeof(float), typeof(string), typeof(float), typeof(bool), typeof(bool), typeof(float), typeof(float), typeof(float), typeof(float) })]
+		public static class ExtendEntityToBasicCreature_Patch
+		{
+			public static void Postfix(GameObject __result)
+			{
+				using var _ = Profiler.Scope();
 
-                if (__result == null)
-                    return;
+				if (__result == null)
+					return;
 
-                var KPrefabID = __result.TryGetComponent<KPrefabID>(out var pid) ? pid.PrefabTag.ToString() : "NO KPrefabID";
+				if (!__result.HasTag(GameTags.Creature))
+					return;
 
-                if (!__result.HasTag(GameTags.Creature)) // I don't expect this to trigger ever
-                    return;
+				__result.AddOrGet<EntityPositionHandler>();
 
-                if (__result.GetComponent<EntityPositionHandler>() != null)
-                    return;
+				var kbac = __result.GetComponent<KBatchedAnimController>();
+				if (kbac == null)
+					return;
 
-                __result.AddOrGet<EntityPositionHandler>();
-            }
-        }
-    }
+				var identity = __result.AddOrGet<NetworkIdentity>();
+				identity.RegisterIdentity();
+				__result.AddOrGet<AnimStateSyncer>();
+			}
+		}
+	}
 }
