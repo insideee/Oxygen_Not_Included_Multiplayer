@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ONI_MP.Networking.Packets.Animation;
 using Shared.Profiling;
+using Steamworks;
 using UnityEngine;
 
 namespace ONI_MP.Networking.Components
@@ -11,18 +12,25 @@ namespace ONI_MP.Networking.Components
 		{
 			public bool HasObservedState;
 			public int LastActivityKey;
+			public float LastChangedTime;
 			public float LastSentTime;
 		}
 
 		private const float TickInterval = 0.2f;
 		private const int ShardCount = 5;
-		private const float SyncInterval = 1f;
+		private const float RecentActivityWindow = 3f;
+		private const float VisibleSyncInterval = 5f;
+		private const float ActiveSyncInterval = 10f;
+		private const int VisibilityMargin = 2;
+		private const int PendingUnreliableBackoffBytes = 32768;
+		private const long QueueTimeBackoffUsec = 100000;
 
 		private static readonly HashSet<AnimStateSyncer> TrackedSyncers = [];
 
 		public static AnimSyncCoordinator Instance { get; private set; }
 
 		private readonly Dictionary<AnimStateSyncer, SyncState> _syncStates = [];
+		private readonly HashSet<ulong> _visibleRecipients = [];
 		private float _tickTimer;
 		private int _currentShard;
 
@@ -86,19 +94,21 @@ namespace ONI_MP.Networking.Components
 			if (trackedSyncers.Count == 0)
 				return;
 
+			bool applyBackoff = ShouldBackOffForSteamQueue();
+
 			// Spread the full scan across five 200ms ticks to avoid bursty correction traffic.
 			for (int i = 0; i < trackedSyncers.Count; i++)
 			{
 				if (i % ShardCount != _currentShard)
 					continue;
 
-				ProcessSyncer(trackedSyncers[i]);
+				ProcessSyncer(trackedSyncers[i], applyBackoff);
 			}
 
 			_currentShard = (_currentShard + 1) % ShardCount;
 		}
 
-		private void ProcessSyncer(AnimStateSyncer syncer)
+		private void ProcessSyncer(AnimStateSyncer syncer, bool applyBackoff)
 		{
 			using var _ = Profiler.Scope();
 
@@ -109,15 +119,34 @@ namespace ONI_MP.Networking.Components
 				return;
 
 			float now = Time.unscaledTime;
-			bool activityChanged = UpdateObservedState(syncer, activityKey);
-			if (!activityChanged && now - _syncStates[syncer].LastSentTime < SyncInterval)
+			bool activityChanged = UpdateObservedState(syncer, activityKey, now);
+			bool visible = TryCollectVisibleRecipients(syncer);
+
+			if (activityChanged && visible)
+			{
+				SendSnapshotToVisibleClients(packet, syncer, now);
+				return;
+			}
+
+			var syncState = _syncStates[syncer];
+			bool recentlyActive = now - syncState.LastChangedTime <= RecentActivityWindow;
+			if (!visible && !recentlyActive)
 				return;
 
-			PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-			_syncStates[syncer].LastSentTime = now;
+			float interval = visible ? VisibleSyncInterval : ActiveSyncInterval;
+			if (applyBackoff)
+				interval *= 2f;
+
+			if (now - syncState.LastSentTime < interval)
+				return;
+
+			if (visible)
+				SendSnapshotToVisibleClients(packet, syncer, now);
+			else
+				SendSnapshotToAllClients(packet, syncer, now);
 		}
 
-		private bool UpdateObservedState(AnimStateSyncer syncer, int activityKey)
+		private bool UpdateObservedState(AnimStateSyncer syncer, int activityKey, float now)
 		{
 			using var _ = Profiler.Scope();
 
@@ -132,9 +161,68 @@ namespace ONI_MP.Networking.Components
 			{
 				syncState.HasObservedState = true;
 				syncState.LastActivityKey = activityKey;
+				syncState.LastChangedTime = now;
 			}
 
 			return activityChanged;
+		}
+
+		private bool TryCollectVisibleRecipients(AnimStateSyncer syncer)
+		{
+			using var _ = Profiler.Scope();
+
+			_visibleRecipients.Clear();
+			if (WorldStateSyncer.Instance == null)
+				return false;
+
+			WorldStateSyncer.Instance.GetClientsViewingCell(syncer.GetGridCell(), _visibleRecipients, VisibilityMargin);
+			return _visibleRecipients.Count > 0;
+		}
+
+		private void SendSnapshotToVisibleClients(AnimSyncPacket packet, AnimStateSyncer syncer, float now)
+		{
+			using var _ = Profiler.Scope();
+
+			foreach (var recipient in _visibleRecipients)
+				PacketSender.SendToPlayer(recipient, packet, PacketSendMode.Unreliable);
+
+			_syncStates[syncer].LastSentTime = now;
+		}
+
+		private void SendSnapshotToAllClients(AnimSyncPacket packet, AnimStateSyncer syncer, float now)
+		{
+			using var _ = Profiler.Scope();
+
+			PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
+			_syncStates[syncer].LastSentTime = now;
+		}
+
+		private bool ShouldBackOffForSteamQueue()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!NetworkConfig.IsSteamConfig())
+				return false;
+
+			foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId == MultiplayerSession.HostUserID)
+					continue;
+				if (player.Connection is not HSteamNetConnection connection)
+					continue;
+
+				SteamNetConnectionRealTimeStatus_t status = default;
+				SteamNetConnectionRealTimeLaneStatus_t laneStatus = default;
+				var result = SteamNetworkingSockets.GetConnectionRealTimeStatus(connection, ref status, 0, ref laneStatus);
+				if (result != EResult.k_EResultOK)
+					continue;
+
+				// Queue pressure doubles correction intervals before unreliable traffic starts piling up.
+				if (status.m_cbPendingUnreliable > PendingUnreliableBackoffBytes || (long)status.m_usecQueueTime > QueueTimeBackoffUsec)
+					return true;
+			}
+
+			return false;
 		}
 
 		private static List<AnimStateSyncer> GetTrackedSyncers()

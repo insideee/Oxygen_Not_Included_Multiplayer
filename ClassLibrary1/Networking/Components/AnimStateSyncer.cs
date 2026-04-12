@@ -99,6 +99,13 @@ namespace ONI_MP.Networking.Components
 			_hasReceivedSnapshot = true;
 		}
 
+		public int GetGridCell()
+		{
+			using var _ = Profiler.Scope();
+
+			return Grid.PosToCell(gameObject);
+		}
+
 		private int BuildActivityKey(int animHash, byte mode, float speed)
 		{
 			using var _ = Profiler.Scope();
