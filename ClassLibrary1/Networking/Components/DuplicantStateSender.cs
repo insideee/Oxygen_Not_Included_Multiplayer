@@ -102,6 +102,18 @@ namespace ONI_MP.Networking.Components
 				lastSentIsWorking = isWorking;
 				lastSentHeldSymbol = heldSymbol;
 
+				int animPlayMode = 0;
+				float animSpeed = 1f;
+				try
+				{
+					if (animController != null)
+					{
+						animPlayMode = (int)animController.mode;
+						animSpeed = animController.playSpeed;
+					}
+				}
+				catch (System.Exception) { /* field not accessible, use defaults */ }
+
 				var packet = new DuplicantStatePacket
 				{
 					NetId = networkIdentity.NetId,
@@ -110,7 +122,9 @@ namespace ONI_MP.Networking.Components
 					CurrentAnimName = animName,
 					AnimElapsedTime = animElapsedTime,
 					IsWorking = isWorking,
-					HeldItemSymbol = heldSymbol
+					HeldItemSymbol = heldSymbol,
+					AnimPlayMode = animPlayMode,
+					AnimSpeed = animSpeed
 				};
 
 				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);

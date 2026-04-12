@@ -3,7 +3,6 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Patches.KleiPatches;
-using Shared.Interfaces.Networking;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +11,7 @@ using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
 
-public class PlayAnimPacket : IPacket, IBulkablePacket
+public class PlayAnimPacket : IPacket
 {
 
 	public PlayAnimPacket() { }
@@ -30,17 +29,13 @@ public class PlayAnimPacket : IPacket, IBulkablePacket
 	}
 
 	public int NetId;
-	public float TimeStamp;
+	public long TimeStamp;
 	public HashedString[] AnimHashes = [];
 	public KAnim.PlayMode Mode;
 	public float Speed;
 	public float TimeOffset;
 	public bool IsQueue; // Supports Queue()
 	bool MultipleAnims => AnimHashes.Count() > 1;
-
-    public int MaxPackSize => 500;
-
-    public uint IntervalMs => 50;
 
     public void Serialize(BinaryWriter writer)
 	{
@@ -63,7 +58,7 @@ public class PlayAnimPacket : IPacket, IBulkablePacket
 		using var _ = Profiler.Scope();
 
 		NetId = reader.ReadInt32();
-		TimeStamp = reader.ReadSingle();
+		TimeStamp = reader.ReadInt64();
 		Mode = (KAnim.PlayMode)reader.ReadInt32();
 		Speed = reader.ReadSingle();
 		TimeOffset = reader.ReadSingle();
@@ -75,7 +70,7 @@ public class PlayAnimPacket : IPacket, IBulkablePacket
 			AnimHashes[i] = new HashedString(reader.ReadInt32());
 	}
 
-	Dictionary<int, float> LastIdUpdates = [];
+	private static readonly Dictionary<int, long> LastIdUpdates = [];
 
 	public void OnDispatched()
 	{
@@ -87,6 +82,7 @@ public class PlayAnimPacket : IPacket, IBulkablePacket
 		if (!NetworkIdentityRegistry.TryGet(NetId, out var go))
 			return;
 
+		// Keep the last event time per entity so older anim packets cannot rewind newer state.
 		if (LastIdUpdates.TryGetValue(NetId, out var lastTimeStamp) && lastTimeStamp > TimeStamp)
 			return;
 		LastIdUpdates[NetId] = TimeStamp;
@@ -141,6 +137,8 @@ public class PlayAnimPacket : IPacket, IBulkablePacket
 
 		}
 		ForceAnimUpdate(kbac);
+		if (go.TryGetComponent<AnimStateSyncer>(out var syncer))
+			syncer.MarkSnapshotReceived();
 		// Force updates for animation to tick properly
 	}
 
