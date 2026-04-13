@@ -113,6 +113,16 @@ namespace ONI_MP.DebugTools.UnitTests
 			return UnitTestResult.Pass("AnimSyncPacket and PlayAnimPacket send directly");
 		}
 
+		[UnitTest(name: "Anim sync: non-minion snapshots use coordinator", category: "Animation")]
+		public static UnitTestResult NonMinionSnapshotsUseCoordinator()
+		{
+			bool perEntityHeartbeat = typeof(IRender1000ms).IsAssignableFrom(typeof(AnimStateSyncer));
+			if (perEntityHeartbeat)
+				return UnitTestResult.Fail("AnimStateSyncer still runs its own 1000ms heartbeat");
+
+			return UnitTestResult.Pass("AnimStateSyncer relies on the shared coordinator");
+		}
+
 		[UnitTest(name: "Anim sync: non-minion entities discoverable", category: "Animation")]
 		public static UnitTestResult NonMinionAnimEntitiesDiscoverable()
 		{
@@ -132,6 +142,33 @@ namespace ONI_MP.DebugTools.UnitTests
 			}
 
 			return UnitTestResult.Fail("No non-minion animated network entities found");
+		}
+
+		[UnitTest(name: "Anim resync request packet: roundtrip", category: "Animation")]
+		public static UnitTestResult AnimResyncRequestPacketRoundtrip()
+		{
+			var packet = new AnimResyncRequestPacket
+			{
+				RequesterId = 99,
+				NetIds = [11, 22, 33]
+			};
+
+			using var ms = new MemoryStream();
+			using (var writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, true))
+				packet.Serialize(writer);
+
+			ms.Position = 0;
+
+			var copy = new AnimResyncRequestPacket();
+			using (var reader = new BinaryReader(ms, System.Text.Encoding.UTF8, true))
+				copy.Deserialize(reader);
+
+			if (copy.RequesterId != packet.RequesterId)
+				return UnitTestResult.Fail("RequesterId did not roundtrip");
+			if (!copy.NetIds.SequenceEqual(packet.NetIds))
+				return UnitTestResult.Fail("NetId list did not roundtrip");
+
+			return UnitTestResult.Pass("AnimResyncRequestPacket serialize/deserialize roundtrip succeeded");
 		}
 	}
 }

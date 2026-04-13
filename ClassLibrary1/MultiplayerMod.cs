@@ -73,6 +73,7 @@ namespace ONI_MP
 				go.AddComponent<BuildingSyncer>();
 				go.AddComponent<WorldStateSyncer>();
 				go.AddComponent<AnimSyncCoordinator>();
+				go.AddComponent<AnimResyncRequester>();
 				go.AddComponent<BulkPacketMonitor>();
 
 				// CHECKPOINT 5

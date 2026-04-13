@@ -30,6 +30,7 @@ namespace ONI_MP.Networking.Components
 		public static AnimSyncCoordinator Instance { get; private set; }
 
 		private readonly Dictionary<AnimStateSyncer, SyncState> _syncStates = [];
+		private readonly Dictionary<ulong, HashSet<int>> _pendingResyncRequests = [];
 		private readonly HashSet<ulong> _visibleRecipients = [];
 		private float _tickTimer;
 		private int _currentShard;
@@ -68,6 +69,42 @@ namespace ONI_MP.Networking.Components
 			}
 		}
 
+		public static List<AnimStateSyncer> GetTrackedSyncers()
+		{
+			using var _ = Profiler.Scope();
+
+			var syncers = new List<AnimStateSyncer>(TrackedSyncers.Count);
+			foreach (var syncer in TrackedSyncers)
+			{
+				if (syncer != null)
+					syncers.Add(syncer);
+			}
+			return syncers;
+		}
+
+		public void QueueResyncRequest(ulong requesterId, IEnumerable<int> netIds)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+				return;
+
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(requesterId, out var player) || player.Connection == null)
+				return;
+
+			if (!_pendingResyncRequests.TryGetValue(requesterId, out var requestSet))
+			{
+				requestSet = [];
+				_pendingResyncRequests[requesterId] = requestSet;
+			}
+
+			foreach (var netId in netIds)
+			{
+				if (netId != 0)
+					requestSet.Add(netId);
+			}
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
@@ -90,6 +127,8 @@ namespace ONI_MP.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
+			ProcessPendingRequests();
+
 			var trackedSyncers = GetTrackedSyncers();
 			if (trackedSyncers.Count == 0)
 				return;
@@ -106,6 +145,45 @@ namespace ONI_MP.Networking.Components
 			}
 
 			_currentShard = (_currentShard + 1) % ShardCount;
+		}
+
+		private void ProcessPendingRequests()
+		{
+			using var _ = Profiler.Scope();
+
+			if (_pendingResyncRequests.Count == 0)
+				return;
+
+			float now = Time.unscaledTime;
+			var completed = new List<ulong>();
+
+			foreach (var kvp in _pendingResyncRequests)
+			{
+				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+				{
+					completed.Add(kvp.Key);
+					continue;
+				}
+
+				foreach (var netId in kvp.Value)
+				{
+					if (!NetworkIdentityRegistry.TryGet(netId, out var identity))
+						continue;
+					if (!identity.TryGetComponent<AnimStateSyncer>(out var syncer))
+						continue;
+					if (!syncer.TryBuildSnapshot(out var packet, out var activityKey))
+						continue;
+
+					PacketSender.SendToPlayer(kvp.Key, packet, PacketSendMode.Unreliable);
+					UpdateObservedState(syncer, activityKey, now);
+					_syncStates[syncer].LastSentTime = now;
+				}
+
+				completed.Add(kvp.Key);
+			}
+
+			foreach (var requesterId in completed)
+				_pendingResyncRequests.Remove(requesterId);
 		}
 
 		private void ProcessSyncer(AnimStateSyncer syncer, bool applyBackoff)
@@ -225,17 +303,5 @@ namespace ONI_MP.Networking.Components
 			return false;
 		}
 
-		private static List<AnimStateSyncer> GetTrackedSyncers()
-		{
-			using var _ = Profiler.Scope();
-
-			var syncers = new List<AnimStateSyncer>(TrackedSyncers.Count);
-			foreach (var syncer in TrackedSyncers)
-			{
-				if (syncer != null)
-					syncers.Add(syncer);
-			}
-			return syncers;
-		}
 	}
 }
