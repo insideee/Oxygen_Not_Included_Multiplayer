@@ -94,9 +94,12 @@ namespace ONI_MP.UI
 
             var drag = header.AddComponent<UIDragHandler>();
             drag.target = rootRT;
-			RectTransform canvasRect = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<RectTransform>();
-			float startX = canvasRect.rect.width * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
-			float startY = -canvasRect.rect.height * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
+			KCanvasScaler scaler = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<KCanvasScaler>();
+			float scale = scaler != null ? scaler.GetCanvasScale() : 1f;
+			float canvasW = Screen.width / scale;
+			float canvasH = Screen.height / scale;
+			float startX = canvasW * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
+			float startY = -canvasH * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
 			rootRT.anchoredPosition = new Vector2(startX, startY);
 
             var chatboxContents = new GameObject("Chatbox_Contents");
