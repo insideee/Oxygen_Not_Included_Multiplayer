@@ -73,6 +73,31 @@ namespace ONI_MP.Networking.Components
 			_clientViewports[steamId] = new RectInt(minX, minY, maxX - minX, maxY - minY);
 		}
 
+		public void GetClientsViewingCell(int cell, HashSet<ulong> recipients, int margin = 2)
+		{
+			using var _ = Profiler.Scope();
+
+			recipients.Clear();
+			if (!Grid.IsValidCell(cell))
+				return;
+
+			Grid.CellToXY(cell, out int x, out int y);
+			foreach (var kvp in _clientViewports)
+			{
+				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+					continue;
+
+				var rect = kvp.Value;
+				if (x >= rect.xMin - margin
+					&& x < rect.xMax + margin
+					&& y >= rect.yMin - margin
+					&& y < rect.yMax + margin)
+				{
+					recipients.Add(kvp.Key);
+				}
+			}
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
