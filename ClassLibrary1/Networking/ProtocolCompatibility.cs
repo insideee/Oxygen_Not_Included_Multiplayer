@@ -5,6 +5,8 @@ namespace ONI_MP.Networking
 {
 	internal static class ProtocolCompatibility
 	{
+
+		public static bool BypassChecks = true;
 		public const int CurrentProtocolVersion = 1;
 
 		private static int? _packetFingerprint;
@@ -33,6 +35,9 @@ namespace ONI_MP.Networking
 		public static bool Matches(int protocolVersion, int packetFingerprint)
 		{
 			using var _ = Profiler.Scope();
+
+			if (BypassChecks)
+				return true;
 
 			return protocolVersion == CurrentProtocolVersion
 				&& packetFingerprint == PacketFingerprint;

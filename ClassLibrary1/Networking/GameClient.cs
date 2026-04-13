@@ -227,32 +227,39 @@ namespace ONI_MP.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			reason = "Protocol mismatch";
+			if(ProtocolCompatibility.BypassChecks)
+			{
+				reason = string.Empty;
+				message = string.Empty;
+				return true;
+			}
+
+			reason = STRINGS.UI.PROTOCOL.VALIDATION.TITLE;
 			message = string.Empty;
 
 			if (!packet.HasProtocolMetadata)
 			{
-				message = "The host is running a build without protocol metadata. Update both peers to the same build.";
+				message = STRINGS.UI.PROTOCOL.VALIDATION.NO_METADATA;
 				return false;
 			}
 
 			if (!packet.ProtocolAccepted)
 			{
 				message = string.IsNullOrEmpty(packet.ProtocolFailureReason)
-					? "The host rejected this client due to an incompatible network protocol."
+					? STRINGS.UI.PROTOCOL.VALIDATION.REJECTED
 					: packet.ProtocolFailureReason;
 				return false;
 			}
 
 			if (packet.ProtocolVersion != ProtocolCompatibility.CurrentProtocolVersion)
 			{
-				message = $"Host protocol={packet.ProtocolVersion}, client protocol={ProtocolCompatibility.CurrentProtocolVersion}.";
+				message = string.Format(STRINGS.UI.PROTOCOL.VALIDATION.PROTOCOL_MISMATCH, packet.ProtocolVersion, ProtocolCompatibility.CurrentProtocolVersion);
 				return false;
 			}
 
 			if (packet.PacketRegistryFingerprint != ProtocolCompatibility.PacketFingerprint)
 			{
-				message = $"Host packet fingerprint={packet.PacketRegistryFingerprint}, client fingerprint={ProtocolCompatibility.PacketFingerprint}.";
+				message = string.Format(STRINGS.UI.PROTOCOL.VALIDATION.FINGERPRINT_MISMATCH, packet.PacketRegistryFingerprint, ProtocolCompatibility.PacketFingerprint);
 				return false;
 			}
 

@@ -14,6 +14,15 @@ namespace ONI_MP
                 public static LocString PACKET_REGISTRY_MISMATCH = "Packet registry mismatch. Host={0}, Peer={1}.";
                 public static LocString MOD_VERSION_MISMATCH = "Mod version mismatch. Host={0}, Peer={1}.";
                 public static LocString INCOMPATIBLE = "Peer is running an incompatible build.";
+
+				public class VALIDATION
+				{
+					public static LocString TITLE = "Protocol mismatch";
+					public static LocString NO_METADATA = "The host is running a build without protocol metadata. Update both peers to the same build.";
+					public static LocString REJECTED = "The host rejected this client due to an incompatible network protocol.";
+					public static LocString PROTOCOL_MISMATCH = "Host protocol={0}, client protocol={1}.";
+                    public static LocString FINGERPRINT_MISMATCH = "Host packet fingerprint={0}, client fingerprint={1}.";
+                }
             }
 
             public class SERVERBROWSER

@@ -185,6 +185,12 @@ namespace ONI_MP.Networking.Packets.Handshake
 		{
 			using var _ = Profiler.Scope();
 
+			if (ProtocolCompatibility.BypassChecks)
+			{
+				reason = string.Empty;
+                return true;
+			}
+
 			if (!HasProtocolMetadata)
 			{
 				reason = ProtocolCompatibility.BuildMismatchReason(ProtocolVersion, PacketRegistryFingerprint, ModVersion, false);
