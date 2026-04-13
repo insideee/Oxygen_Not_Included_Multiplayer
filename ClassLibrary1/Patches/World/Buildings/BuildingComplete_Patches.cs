@@ -20,6 +20,9 @@ namespace ONI_MP.Patches.World.Buildings
                 using var _ = Profiler.Scope();
 
                 __instance.gameObject.AddOrGet<NetworkIdentity>();
+
+				if (AnimSyncEligibility.IsAnimatedBuilding(__instance.gameObject))
+					__instance.gameObject.AddOrGet<AnimStateSyncer>();
             }
         }
 	}

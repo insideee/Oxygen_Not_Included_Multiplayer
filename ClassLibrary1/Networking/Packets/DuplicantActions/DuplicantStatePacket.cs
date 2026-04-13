@@ -1,4 +1,4 @@
-using ONI_MP.DebugTools;
+using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
@@ -8,6 +8,7 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 	/// <summary>
 	/// Synchronizes high-level duplicant state (action type, work target, etc.)
 	/// This helps clients understand what the duplicant is doing beyond just animations.
+	/// Includes continuous animation reconciliation to self-correct desync.
 	/// </summary>
 	public class DuplicantStatePacket : IPacket
 	{
@@ -17,7 +18,9 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 		public string CurrentAnimName;  // specific animation override
 		public float AnimElapsedTime;   // Elapsed time in current animation
 		public bool IsWorking;          // Whether actively working on something
-		public string HeldItemSymbol; // For syncing guns/tools/carryables current animation
+		public string HeldItemSymbol;   // For syncing guns/tools/carryables current animation
+		public int AnimPlayMode;        // KAnim.PlayMode for continuous anim reconciliation
+		public float AnimSpeed;         // Playback speed for continuous anim reconciliation
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -30,6 +33,8 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 			writer.Write(AnimElapsedTime);
 			writer.Write(IsWorking);
 			writer.Write(HeldItemSymbol ?? string.Empty);
+			writer.Write(AnimPlayMode);
+			writer.Write(AnimSpeed);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -37,12 +42,14 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 			using var _ = Profiler.Scope();
 
 			NetId = reader.ReadInt32();
-			ActionState = (DuplicantActionState)reader.ReadInt32(); // Changed to Int32 to match Serialize
+			ActionState = (DuplicantActionState)reader.ReadInt32();
 			TargetCell = reader.ReadInt32();
 			CurrentAnimName = reader.ReadString();
 			AnimElapsedTime = reader.ReadSingle();
 			IsWorking = reader.ReadBoolean();
 			HeldItemSymbol = reader.ReadString();
+			AnimPlayMode = reader.ReadInt32();
+			AnimSpeed = reader.ReadSingle();
 		}
 
 		public void OnDispatched()
@@ -52,6 +59,19 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 			if (MultiplayerSession.IsHost)
 				return;
 
+			if (!NetworkIdentityRegistry.TryGetComponent<KBatchedAnimController>(NetId, out var kbac))
+				return;
+
+			if (string.IsNullOrEmpty(CurrentAnimName))
+				return;
+
+			AnimReconciliationHelper.Reconcile(
+				kbac,
+				new HashedString(CurrentAnimName),
+				(KAnim.PlayMode)AnimPlayMode,
+				AnimSpeed,
+				AnimElapsedTime,
+				nameof(DuplicantStatePacket));
 		}
 	}
 

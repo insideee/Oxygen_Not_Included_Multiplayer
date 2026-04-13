@@ -335,6 +335,9 @@ namespace ONI_MP.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
+            // Until this is improved later just assume good.
+            return NetworkIndicatorsScreen.NetworkState.GOOD;
+
             if (_client == null || !_client.IsConnected)
                 return NetworkIndicatorsScreen.NetworkState.BAD;
 

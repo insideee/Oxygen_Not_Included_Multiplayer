@@ -73,6 +73,63 @@ namespace ONI_MP.Networking.Components
 			_clientViewports[steamId] = new RectInt(minX, minY, maxX - minX, maxY - minY);
 		}
 
+		public void GetClientsViewingCell(int cell, HashSet<ulong> recipients, int margin = 2)
+		{
+			using var _ = Profiler.Scope();
+
+			recipients.Clear();
+			if (!Grid.IsValidCell(cell))
+				return;
+
+			Grid.CellToXY(cell, out int x, out int y);
+			foreach (var kvp in _clientViewports)
+			{
+				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+					continue;
+
+				var rect = kvp.Value;
+				if (x >= rect.xMin - margin
+					&& x < rect.xMax + margin
+					&& y >= rect.yMin - margin
+					&& y < rect.yMax + margin)
+				{
+					recipients.Add(kvp.Key);
+				}
+			}
+		}
+
+		public bool IsCellVisibleToAnyClient(int cell, int margin = 2)
+		{
+			using var _ = Profiler.Scope();
+
+			var recipients = new HashSet<ulong>();
+			GetClientsViewingCell(cell, recipients, margin);
+			return recipients.Count > 0;
+		}
+
+		public static bool TryGetLocalViewport(out RectInt viewport, int margin = 2)
+		{
+			using var _ = Profiler.Scope();
+
+			viewport = default;
+			if (Camera.main == null || Grid.WidthInCells == 0 || Grid.HeightInCells == 0)
+				return false;
+
+			Camera cam = Camera.main;
+			Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0, 0, 0));
+			Vector3 tr = cam.ViewportToWorldPoint(new Vector3(1, 1, 0));
+			Grid.PosToXY(bl, out int x1, out int y1);
+			Grid.PosToXY(tr, out int x2, out int y2);
+
+			x1 = Mathf.Max(0, x1 - margin);
+			y1 = Mathf.Max(0, y1 - margin);
+			x2 = Mathf.Min(Grid.WidthInCells, x2 + margin);
+			y2 = Mathf.Min(Grid.HeightInCells, y2 + margin);
+
+			viewport = new RectInt(x1, y1, Mathf.Max(0, x2 - x1), Mathf.Max(0, y2 - y1));
+			return viewport.width > 0 && viewport.height > 0;
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
