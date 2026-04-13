@@ -25,6 +25,13 @@ namespace ONI_MP.Patches.World.SideScreen
     [HarmonyPatch(typeof(SingleEntityReceptacle), nameof(SingleEntityReceptacle.CreateOrder))]
 	public static class SingleEntityReceptacle_CreateOrder_Patch
 	{
+		public static bool Prefix()
+		{
+			if (!MultiplayerSession.InSession) return true;
+			if (MultiplayerSession.IsHost) return true;
+			return false; // Client: skip CreateOrder to prevent preview plant; Postfix still sends packet
+		}
+
 		public static void Postfix(SingleEntityReceptacle __instance, Tag entityTag, Tag additionalFilterTag)
 		{
 			using var _ = Profiler.Scope();
@@ -73,6 +80,13 @@ namespace ONI_MP.Patches.World.SideScreen
 	[HarmonyPatch(typeof(SingleEntityReceptacle), nameof(SingleEntityReceptacle.CancelActiveRequest))]
 	public static class SingleEntityReceptacle_CancelActiveRequest_Patch
 	{
+		public static bool Prefix()
+		{
+			if (!MultiplayerSession.InSession) return true;
+			if (MultiplayerSession.IsHost) return true;
+			return false; // Client: skip, let host handle it
+		}
+
 		public static void Postfix(SingleEntityReceptacle __instance)
 		{
 			using var _ = Profiler.Scope();

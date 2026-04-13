@@ -32,6 +32,7 @@ namespace ONI_MP.DebugTools
 		public static SyncMetric Buildings = new SyncMetric { Name = "Buildings", Interval = 30f };
 		public static SyncMetric Structures = new SyncMetric { Name = "Structures", Interval = 0.5f };
 		public static SyncMetric VitalStats = new SyncMetric { Name = "VitalStats", Interval = 1f };
+		public static SyncMetric Plants = new SyncMetric { Name = "Plants", Interval = 5f };
 
 		/// <summary>
 		/// Updates a metric after a sync operation.
@@ -52,7 +53,7 @@ namespace ONI_MP.DebugTools
 		public static SyncMetric[] AllMetrics => new[]
 		{
 			Gas, Digging, Chores, Research,
-			Buildings, Structures, VitalStats
+			Buildings, Structures, VitalStats, Plants
 		};
 	}
 }

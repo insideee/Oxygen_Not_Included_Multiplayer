@@ -51,6 +51,7 @@ namespace ONI_MP.Networking.Packets.World.Buildings
 			ComplexRecipe complexRecipe = fab.recipe_list[CompletedRecipeIdx];
 			DebugConsole.Log($"[ComplexFabricatorSpawnProductPacket] spawning product {complexRecipe.id} for {fab.name} with netId {NetId}");
 			fab.SpawnOrderProduct(complexRecipe);
+			RemoteProgressRegistry.Clear(NetId, RemoteProgressKind.ComplexFabricatorOrder);
 		}
 	}
 }

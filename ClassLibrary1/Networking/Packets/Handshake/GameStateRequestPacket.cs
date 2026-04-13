@@ -1,25 +1,41 @@
-﻿using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.States;
-using Steamworks;
-using System;
+﻿using ONI_MP.DebugTools;
+using ONI_MP.Networking.Packets.Architecture;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
+using UnityEngine;
 
 namespace ONI_MP.Networking.Packets.Handshake
 {
 	public class GameStateRequestPacket : IPacket
 	{
 		public GameStateRequestPacket() { }
-		public GameStateRequestPacket(ulong steamID) { ClientId = steamID; }
+		public GameStateRequestPacket(ulong steamID)
+		{
+			ClientId = steamID;
+		}
 
 		public ulong ClientId;
 		public HashSet<string> ActiveDlcIds = [];
 		public List<ulong> ActiveModIds = [];
+		public int ProtocolVersion;
+		public int PacketRegistryFingerprint;
+		public string ModVersion = string.Empty;
+		public bool ProtocolAccepted = true;
+		public string ProtocolFailureReason = string.Empty;
 
+		public bool HasProtocolMetadata { get; private set; }
+
+		public static GameStateRequestPacket CreateClientRequest(ulong clientId)
+		{
+			using var _ = Profiler.Scope();
+
+			var packet = new GameStateRequestPacket(clientId);
+			packet.PopulateProtocolMetadata();
+			return packet;
+		}
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -36,6 +52,12 @@ namespace ONI_MP.Networking.Packets.Handshake
 			{
 				writer.Write(id);
 			}
+
+			writer.Write(ProtocolVersion);
+			writer.Write(PacketRegistryFingerprint);
+			writer.Write(ModVersion ?? string.Empty);
+			writer.Write(ProtocolAccepted);
+			writer.Write(ProtocolFailureReason ?? string.Empty);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -56,6 +78,21 @@ namespace ONI_MP.Networking.Packets.Handshake
 			{
 				ActiveModIds.Add(reader.ReadUInt64());
 			}
+
+			HasProtocolMetadata = false;
+			ProtocolAccepted = true;
+			ProtocolFailureReason = string.Empty;
+			if (reader.BaseStream.Position >= reader.BaseStream.Length)
+			{
+				return;
+			}
+
+			ProtocolVersion = reader.ReadInt32();
+			PacketRegistryFingerprint = reader.ReadInt32();
+			ModVersion = reader.ReadString();
+			ProtocolAccepted = reader.ReadBoolean();
+			ProtocolFailureReason = reader.ReadString();
+			HasProtocolMetadata = true;
 		}
 
 		public void OnDispatched()
@@ -67,7 +104,7 @@ namespace ONI_MP.Networking.Packets.Handshake
 
 			if (MultiplayerSession.IsHost)
 			{
-				CreateStateResponse();
+				HandleHostRequest();
 			}
 			else
 			{
@@ -75,17 +112,42 @@ namespace ONI_MP.Networking.Packets.Handshake
 			}
 		}
 
-		void CreateStateResponse()
+		private void HandleHostRequest()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!IsProtocolCompatible(out string reason))
+			{
+				DebugConsole.LogWarning($"[GameStateRequestPacket] Rejecting client {ClientId}: {reason}");
+				RejectClient(reason);
+				return;
+			}
+
+			MarkClientAsProtocolVerified();
+			CreateStateResponse();
+		}
+
+		private void CreateStateResponse()
 		{
 			using var _ = Profiler.Scope();
 
 			PacketSender.SendToPlayer(ClientId, AccumulateStateInfo());
 		}
-		static GameStateRequestPacket AccumulateStateInfo()
+
+		private static GameStateRequestPacket AccumulateStateInfo(bool protocolAccepted = true, string protocolFailureReason = "")
 		{
 			using var _ = Profiler.Scope();
 
 			var packet = new GameStateRequestPacket();
+			packet.PopulateProtocolMetadata();
+			packet.ProtocolAccepted = protocolAccepted;
+			packet.ProtocolFailureReason = protocolFailureReason ?? string.Empty;
+
+			if (!protocolAccepted)
+			{
+				return packet;
+			}
+
 			packet.ActiveDlcIds = SaveLoader.Instance.GameInfo.dlcIds.ToHashSet();
 			packet.ActiveModIds.Clear();
 
@@ -100,11 +162,86 @@ namespace ONI_MP.Networking.Packets.Handshake
 			return packet;
 		}
 
-		void ConsumeStateResponse()
+		private void ConsumeStateResponse()
 		{
 			using var _ = Profiler.Scope();
 
 			GameClient.OnHostResponseReceived(this);
+		}
+
+		private void PopulateProtocolMetadata()
+		{
+			using var _ = Profiler.Scope();
+
+			ProtocolVersion = ProtocolCompatibility.CurrentProtocolVersion;
+			PacketRegistryFingerprint = ProtocolCompatibility.PacketFingerprint;
+			ModVersion = ProtocolCompatibility.ModVersion;
+			HasProtocolMetadata = true;
+		}
+
+		private bool IsProtocolCompatible(out string reason)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!HasProtocolMetadata)
+			{
+				reason = ProtocolCompatibility.BuildMismatchReason(ProtocolVersion, PacketRegistryFingerprint, ModVersion, false);
+				return false;
+			}
+
+			if (!ProtocolCompatibility.Matches(ProtocolVersion, PacketRegistryFingerprint))
+			{
+				reason = ProtocolCompatibility.BuildMismatchReason(ProtocolVersion, PacketRegistryFingerprint, ModVersion, true);
+				return false;
+			}
+
+			reason = string.Empty;
+			return true;
+		}
+
+		private void MarkClientAsProtocolVerified()
+		{
+			using var _ = Profiler.Scope();
+
+			var player = MultiplayerSession.GetPlayer(ClientId);
+			if (player != null)
+			{
+				player.ProtocolVerified = true;
+			}
+		}
+
+		private void RejectClient(string reason)
+		{
+			using var _ = Profiler.Scope();
+
+			var player = MultiplayerSession.GetPlayer(ClientId);
+			if (player != null)
+			{
+				player.ProtocolVerified = false;
+			}
+
+			if (HasProtocolMetadata)
+			{
+				PacketSender.SendToPlayer(ClientId, AccumulateStateInfo(protocolAccepted: false, protocolFailureReason: reason), PacketSendMode.ReliableImmediate);
+			}
+
+			if (Game.Instance != null)
+			{
+				Game.Instance.StartCoroutine(DelayedKick(ClientId, HasProtocolMetadata ? 0.25f : 0f));
+				return;
+			}
+
+			NetworkConfig.TransportServer?.KickClient(ClientId);
+		}
+
+		private static IEnumerator DelayedKick(ulong clientId, float delay)
+		{
+			if (delay > 0f)
+			{
+				yield return new WaitForSecondsRealtime(delay);
+			}
+
+			NetworkConfig.TransportServer?.KickClient(clientId);
 		}
 	}
 }

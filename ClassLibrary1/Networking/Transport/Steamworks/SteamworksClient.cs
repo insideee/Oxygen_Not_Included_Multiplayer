@@ -211,22 +211,14 @@ namespace ONI_MP.Networking.Transport.Steam
             DebugConsole.Log("[GameClient] Connection to host established!");
 
             // Skip mod verification if we are the host
-            if (MultiplayerSession.IsHost)
-            {
-                return;
-            }
+			if (MultiplayerSession.IsHost)
+			{
+				return;
+			}
 
-            PacketHandler.readyToProcess = true;
-
-            if (Utils.IsInGame())
-            {
-                NetworkConfig.TransportClient.OnContinueConnectionFlow.Invoke();
-            }
-            else
-            {
-                NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
-            }
-        }
+			PacketHandler.readyToProcess = true;
+			NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
+		}
 
         private static void OnDisconnected(string reason, CSteamID remote, ESteamNetworkingConnectionState state)
         {

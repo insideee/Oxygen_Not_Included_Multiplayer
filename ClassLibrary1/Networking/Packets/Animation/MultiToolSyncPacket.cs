@@ -55,7 +55,7 @@ namespace ONI_MP.Networking.Packets.Animation
 				return;
 
 			if (!NetworkIdentityRegistry.TryGetComponent<StandardWorker>(WorkerNetId, out var worker)
-			|| !NetworkIdentityRegistry.TryGetComponent<Workable>(WorkerNetId, out var workable))
+			|| !NetworkIdentityRegistry.TryGetComponent<Workable>(WorkableNetId, out var workable))
 				return;
 
 			var hiteffect = Assets.TryGetPrefab(HitEffectPrefabId);

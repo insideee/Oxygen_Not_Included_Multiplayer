@@ -109,6 +109,23 @@ namespace ONI_MP.Networking.Packets.Architecture
 			DebugConsole.LogSuccess($"[PacketRegistry] Auto-registering {count} packets took {duration.TotalMilliseconds} ms");
 		}
 
+		public static int GetRegisteredPacketFingerprint()
+		{
+			using var _ = Profiler.Scope();
+
+			int[] ids = _PacketTypes.Keys.OrderBy(id => id).ToArray();
+			using var ms = new MemoryStream();
+			using var writer = new BinaryWriter(ms);
+			foreach (int id in ids)
+			{
+				writer.Write(id);
+			}
+
+			using var sha256 = SHA256.Create();
+			byte[] hash = sha256.ComputeHash(ms.ToArray());
+			return BitConverter.ToInt32(hash, 0);
+		}
+
         public static void TryRegister(Type packetType, string nameOverride = "")
         {
 	        using var _ = Profiler.Scope();

@@ -105,6 +105,7 @@ namespace ONI_MP.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
+			RemoteProgressRegistry.Clear(NetId);
 			NetworkIdentityRegistry.Unregister(NetId);
 			DebugConsole.Log($"[NetworkIdentity] Unregistered NetId {NetId} for {gameObject.name}");
 			base.OnCleanUp();

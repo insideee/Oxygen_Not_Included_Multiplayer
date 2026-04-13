@@ -46,6 +46,7 @@ namespace ONI_MP.Networking
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();
 			WorkProgressPatch.ClearTracking();
+			RemoteProgressRegistry.ClearAll();
 			DebugConsole.Log("[MultiplayerSession] Session cleared.");
 		}
 

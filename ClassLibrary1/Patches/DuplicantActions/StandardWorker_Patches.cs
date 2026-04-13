@@ -3,6 +3,7 @@ using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Animation;
+using ONI_MP.Networking.Packets.World;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,8 +26,7 @@ namespace ONI_MP.Patches.DuplicantActions
 			{
                 typeof(DefragmentationZone),
                 typeof(RancherWorkable),
-                typeof(LiquidPumpingStation),
-				typeof(GunkEmptierWorkable)
+                typeof(LiquidPumpingStation)
             };
 
 			public static void Postfix(StandardWorker __instance, StartWorkInfo start_work_info)
@@ -55,6 +55,28 @@ namespace ONI_MP.Patches.DuplicantActions
 		[HarmonyPatch(typeof(StandardWorker), nameof(StandardWorker.StopWork))]
 		public class StandardWorker_StopWork_Patch
 		{
+			public static void Prefix(StandardWorker __instance)
+			{
+				using var _ = Profiler.Scope();
+
+				if (__instance.IsNullOrDestroyed())
+					return;
+
+				if (!Utils.IsHostMinion(__instance))
+					return;
+
+				var workable = __instance.GetWorkable();
+				if (workable == null || workable.IsNullOrDestroyed())
+					return;
+
+				PacketSender.SendToAllClients(WorkableProgressPacket.CreateHidden(workable), PacketSendMode.ReliableImmediate);
+
+				if (workable.TryGetComponent<ComplexFabricator>(out var fabricator) && fabricator != null && !fabricator.IsNullOrDestroyed())
+				{
+					PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(fabricator, showProgressBar: false), PacketSendMode.ReliableImmediate);
+				}
+			}
+
 			public static void Postfix(StandardWorker __instance)
 			{
 				using var _ = Profiler.Scope();
