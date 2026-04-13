@@ -116,12 +116,14 @@ namespace ONI_MP.Networking.Packets.Handshake
 		{
 			using var _ = Profiler.Scope();
 
+#if RELEASE
 			if (!IsProtocolCompatible(out string reason))
 			{
 				DebugConsole.LogWarning($"[GameStateRequestPacket] Rejecting client {ClientId}: {reason}");
 				RejectClient(reason);
 				return;
 			}
+#endif
 
 			MarkClientAsProtocolVerified();
 			CreateStateResponse();

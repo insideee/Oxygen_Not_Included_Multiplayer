@@ -7,7 +7,16 @@ namespace ONI_MP
 	{
 		public class UI
 		{
-			public class SERVERBROWSER
+            public class PROTOCOL
+            {
+                public static LocString NO_METADATA = "Peer is running a build without protocol metadata.";
+                public static LocString PROTOCOL_MISMATCH = "Protocol mismatch. Host={0}, Peer={1}.";
+                public static LocString PACKET_REGISTRY_MISMATCH = "Packet registry mismatch. Host={0}, Peer={1}.";
+                public static LocString MOD_VERSION_MISMATCH = "Mod version mismatch. Host={0}, Peer={1}.";
+                public static LocString INCOMPATIBLE = "Peer is running an incompatible build.";
+            }
+
+            public class SERVERBROWSER
 			{
 				public static LocString MULTIPLAYER_SESSION_TITLE = "Multiplayer Session";
 				public static LocString LOBBY_CODE = "Lobby Code:";

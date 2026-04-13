@@ -42,27 +42,27 @@ namespace ONI_MP.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!hasMetadata)
-			{
-				return "Peer is running a build without protocol metadata.";
-			}
+            if (!hasMetadata)
+            {
+                return STRINGS.UI.PROTOCOL.NO_METADATA;
+            }
 
-			if (remoteProtocolVersion != CurrentProtocolVersion)
-			{
-				return $"Protocol mismatch. Host={CurrentProtocolVersion}, Peer={remoteProtocolVersion}.";
-			}
+            if (remoteProtocolVersion != CurrentProtocolVersion)
+            {
+                return string.Format(STRINGS.UI.PROTOCOL.PROTOCOL_MISMATCH, CurrentProtocolVersion, remoteProtocolVersion);
+            }
 
-			if (remotePacketFingerprint != PacketFingerprint)
-			{
-				return $"Packet registry mismatch. Host={PacketFingerprint}, Peer={remotePacketFingerprint}.";
-			}
+            if (remotePacketFingerprint != PacketFingerprint)
+            {
+                return string.Format(STRINGS.UI.PROTOCOL.PACKET_REGISTRY_MISMATCH, PacketFingerprint, remotePacketFingerprint);
+            }
 
-			if (!string.IsNullOrEmpty(remoteModVersion) && remoteModVersion != ModVersion)
-			{
-				return $"Mod version mismatch. Host={ModVersion}, Peer={remoteModVersion}.";
-			}
+            if (!string.IsNullOrEmpty(remoteModVersion) && remoteModVersion != ModVersion)
+            {
+                return string.Format(STRINGS.UI.PROTOCOL.MOD_VERSION_MISMATCH, ModVersion, remoteModVersion);
+            }
 
-			return "Peer is running an incompatible build.";
-		}
+            return STRINGS.UI.PROTOCOL.INCOMPATIBLE;
+        }
 	}
 }
