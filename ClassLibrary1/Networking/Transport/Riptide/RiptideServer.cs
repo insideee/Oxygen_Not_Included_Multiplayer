@@ -61,6 +61,7 @@ namespace ONI_MP.Networking.Transport.Lan
             int maxClients = Configuration.Instance.Host.MaxLobbySize;
 
             _server = new Server("Lan/Riptide");
+            _server.TimeoutTime = 30000;
             _server.MessageReceived += OnServerMessageReceived;
             _server.ConnectionFailed += OnClientConnectionFailed;
             _server.ClientConnected += ServerOnClientConnected;
