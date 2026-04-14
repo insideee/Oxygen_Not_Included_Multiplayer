@@ -1,5 +1,6 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.World;
+using ONI_MP.Patches.World;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -152,8 +153,14 @@ namespace ONI_MP.Networking.Components
 					DebugConsole.LogError($"[StructureStateSyncer] Failed to set battery joules: {ex}");
 				}
 
-				// Refresh the client-side meter after writing the backing field directly.
-				go.GetComponent<BatteryTracker>()?.UpdateData();
+				// Preserve the historical client-side crash guard and only allow
+				// this explicit refresh path to execute UpdateData on clients.
+				var tracker = go.GetComponent<BatteryTracker>();
+				if (tracker != null)
+				{
+					using var allowClientRefresh = BatteryTrackerPatch.AllowClientRefresh();
+					tracker.UpdateData();
+				}
 			}
 
 			var operational = go.GetComponent<Operational>();

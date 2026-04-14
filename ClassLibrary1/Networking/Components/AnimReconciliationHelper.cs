@@ -18,6 +18,7 @@ namespace ONI_MP.Networking.Components
 		private static MethodInfo _setElapsedTimeMethod;
 		private static FieldInfo _elapsedTimeField;
 		private static bool _resolved;
+		private static bool _missingSetterLogged;
 
 		internal static void Reconcile(KBatchedAnimController kbac, HashedString animHash, KAnim.PlayMode playMode, float animSpeed, float elapsedTime, string source)
 		{
@@ -66,6 +67,11 @@ namespace ONI_MP.Networking.Components
 					_setElapsedTimeMethod.Invoke(kbac, [elapsedTime]);
 				else if (_elapsedTimeField != null)
 					_elapsedTimeField.SetValue(kbac, elapsedTime);
+				else if (!_missingSetterLogged)
+				{
+					_missingSetterLogged = true;
+					DebugConsole.LogWarning("[AnimReconciliationHelper] Failed to resolve elapsed-time setter; animation drift correction will be disabled");
+				}
 			}
 			catch (Exception ex)
 			{
