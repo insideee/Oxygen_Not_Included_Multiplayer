@@ -26,8 +26,15 @@ namespace ONI_MP.Networking.Components
 				if (kbac.currentAnim != animHash)
 				{
 					KAnimControllerBase_Patches.AllowAnims();
-					kbac.Play(animHash, playMode, animSpeed, 0f);
-					KAnimControllerBase_Patches.ForbidAnims();
+					try
+					{
+						kbac.Play(animHash, playMode, animSpeed, 0f);
+					}
+					finally
+					{
+						// Invariant #10: a throw in Play must not leak globally-allowed anims.
+						KAnimControllerBase_Patches.ForbidAnims();
+					}
 					ForceAnimUpdate(kbac, source);
 					TrySetElapsedTime(kbac, elapsedTime);
 					return;

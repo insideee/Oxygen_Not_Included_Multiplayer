@@ -72,6 +72,18 @@ public class PlayAnimPacket : IPacket
 
 	private static readonly Dictionary<int, long> LastIdUpdates = [];
 
+	// Invariant #6: bound long-lived collections. Prune per-entity entry on cleanup,
+	// clear the whole map on session teardown via NetworkIdentityRegistry.Clear().
+	public static void ForgetNetId(int netId)
+	{
+		LastIdUpdates.Remove(netId);
+	}
+
+	public static void ClearState()
+	{
+		LastIdUpdates.Clear();
+	}
+
 	public void OnDispatched()
 	{
 		using var _ = Profiler.Scope();
