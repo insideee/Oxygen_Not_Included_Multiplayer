@@ -1,4 +1,5 @@
 using HarmonyLib;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using Shared.Profiling;
@@ -13,7 +14,18 @@ namespace ONI_MP.Patches.World
 		public static void Postfix(Building __instance)
 		{
 			using var _ = Profiler.Scope();
+			try
+			{
+				PostfixBody(__instance);
+			}
+			catch (System.Exception ex)
+			{
+				DebugConsole.LogError($"[BuildingSpawnPatch] {ex}");
+			}
+		}
 
+		private static void PostfixBody(Building __instance)
+		{
 			var go = __instance.gameObject;
 
 			// We skip construction for configuration sync usually,
