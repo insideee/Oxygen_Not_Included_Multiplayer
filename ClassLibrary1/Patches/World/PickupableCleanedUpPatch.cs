@@ -7,7 +7,7 @@ using Shared.Profiling;
 
 namespace ONI_MP.Patches.World
 {
-	[HarmonyPatch(typeof(Pickupable), "OnCleanedUp")]
+	[HarmonyPatch(typeof(Pickupable), "OnCleanUp")]
 	public static class PickupableCleanedUpPatch
 	{
 		public static void Postfix(Pickupable __instance)
