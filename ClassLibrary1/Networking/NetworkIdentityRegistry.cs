@@ -1,5 +1,6 @@
 ﻿using ONI_MP.DebugTools;
 using ONI_MP.Networking.Components;
+using ONI_MP.Networking.Packets.World;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -117,6 +118,7 @@ namespace ONI_MP.Networking
 
 			identities.Clear();
 			_lookupFailCount = 0;
+			GroundItemPickedUpPacket.ClearPending();
 		}
 
 		public static IEnumerable<NetworkIdentity> AllIdentities => identities.Values;

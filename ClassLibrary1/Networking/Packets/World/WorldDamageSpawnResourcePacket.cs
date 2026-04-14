@@ -81,6 +81,13 @@ namespace ONI_MP.Networking.Packets.World
 			identity.OverrideNetId(NetId);
 			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
 
+			if (GroundItemPickedUpPacket.TryConsumePending(NetId))
+			{
+				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
+				Util.KDestroyGameObject(dropped);
+				return;
+			}
+
 			Pickupable pickup = dropped.GetComponent<Pickupable>();
 			if (pickup != null && pickup.GetMyWorld()?.worldInventory.IsReachable(pickup) == true)
 			{

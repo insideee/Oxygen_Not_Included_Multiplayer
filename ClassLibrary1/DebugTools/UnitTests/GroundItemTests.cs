@@ -2,6 +2,7 @@ using System.IO;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.World;
+using Shared.Interfaces.Networking;
 
 namespace ONI_MP.DebugTools.UnitTests
 {
@@ -23,15 +24,13 @@ namespace ONI_MP.DebugTools.UnitTests
 			return UnitTestResult.Pass("GroundItemPickedUpPacket roundtrip OK");
 		}
 
-		[UnitTest(name: "GroundItemPickedUpPacket: is IBulkablePacket", category: "GroundItems")]
-		public static UnitTestResult IsBulkable()
+		[UnitTest(name: "GroundItemPickedUpPacket: sends immediately", category: "GroundItems")]
+		public static UnitTestResult SendsImmediately()
 		{
-			var p = new GroundItemPickedUpPacket();
-			if (p.MaxPackSize != 200)
-				return UnitTestResult.Fail($"MaxPackSize expected 200, got {p.MaxPackSize}");
-			if (p.IntervalMs != 200)
-				return UnitTestResult.Fail($"IntervalMs expected 200, got {p.IntervalMs}");
-			return UnitTestResult.Pass($"GroundItemPickedUpPacket IBulkablePacket: MaxPackSize={p.MaxPackSize}, IntervalMs={p.IntervalMs}");
+			if (typeof(IBulkablePacket).IsAssignableFrom(typeof(GroundItemPickedUpPacket)))
+				return UnitTestResult.Fail("GroundItemPickedUpPacket still depends on bulk flushing");
+
+			return UnitTestResult.Pass("GroundItemPickedUpPacket dispatches immediately and stays independent of bulk flush timing");
 		}
 
 		[UnitTest(name: "GroundItems: NetworkIdentityRegistry accessible", category: "GroundItems")]
@@ -50,6 +49,25 @@ namespace ONI_MP.DebugTools.UnitTests
 			if (ClearTool.Instance == null)
 				return UnitTestResult.Fail("ClearTool.Instance is null");
 			return UnitTestResult.Pass("ClearTool.Instance accessible");
+		}
+
+		[UnitTest(name: "GroundItemPickedUpPacket: pending removal queue", category: "GroundItems")]
+		public static UnitTestResult PendingRemovalQueue()
+		{
+			const int testNetId = 424242;
+			GroundItemPickedUpPacket.ClearPending();
+
+			var packet = new GroundItemPickedUpPacket { NetId = testNetId };
+			packet.OnDispatched();
+
+			if (!GroundItemPickedUpPacket.TryConsumePending(testNetId))
+				return UnitTestResult.Fail("Expected pending pickup removal to be queued for unresolved NetId");
+
+			if (GroundItemPickedUpPacket.TryConsumePending(testNetId))
+				return UnitTestResult.Fail("Pending pickup removal should be consumed only once");
+
+			GroundItemPickedUpPacket.ClearPending();
+			return UnitTestResult.Pass("Pending pickup removals queue and consume correctly");
 		}
 	}
 }
