@@ -27,13 +27,14 @@ namespace ONI_MP.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
+			// Original client-block existed to avoid hard-sync crashes. IsHardSyncInProgress
+			// now covers that case directly, so let BatteryTracker.UpdateData run on clients
+			// otherwise — blocking it leaves batteries unregistered in the local CircuitManager,
+			// making every powered building render as "no power" until the next joules delta.
 			if (GameClient.IsHardSyncInProgress)
 				return false;
 
-			if (!MultiplayerSession.InSession)
-				return true;
-
-			return MultiplayerSession.IsHost || _allowedClientRefreshDepth > 0;
+			return true;
 		}
 	}
 }
