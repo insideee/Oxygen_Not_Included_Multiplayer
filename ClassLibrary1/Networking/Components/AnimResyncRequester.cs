@@ -9,12 +9,21 @@ namespace ONI_MP.Networking.Components
 	internal class AnimResyncRequester : MonoBehaviour
 	{
 		private const float InitialRequestDelay = 1f;
-		private const float RetryInterval = 5f;
+		private const float RetryIntervalBase = 5f;
+		private const float RetryIntervalMax = 30f;
+		// Per-NetId cooldown prevents the same entity from being requested
+		// every retry tick when the host silently drops responses.
+		private const float PerNetIdCooldown = 15f;
+		// Hard cap on NetIds per AnimResyncRequestPacket. Unreliable UDP
+		// fragments silently when the payload exceeds MTU.
+		private const int MaxNetIdsPerPacket = 64;
 
 		private bool _subscribed;
 		private bool _initialRequestSent;
 		private float _nextInitialRequestTime = float.MaxValue;
 		private float _lastRetryTime;
+		private float _retryInterval = RetryIntervalBase;
+		private readonly Dictionary<int, float> _lastRequestTime = [];
 
 		private void Update()
 		{
@@ -27,6 +36,8 @@ namespace ONI_MP.Networking.Components
 			{
 				_initialRequestSent = false;
 				_nextInitialRequestTime = float.MaxValue;
+				_retryInterval = RetryIntervalBase;
+				_lastRequestTime.Clear();
 				return;
 			}
 
@@ -41,10 +52,14 @@ namespace ONI_MP.Networking.Components
 				_lastRetryTime = now;
 			}
 
-			if (_initialRequestSent && now - _lastRetryTime >= RetryInterval)
+			if (_initialRequestSent && now - _lastRetryTime >= _retryInterval)
 			{
-				RequestVisibleAnimations(false);
+				bool sentAny = RequestVisibleAnimations(false);
 				_lastRetryTime = now;
+				// Exponential backoff while the host keeps dropping or ignoring
+				// our requests; reset on the next fresh session or scheduling.
+				if (sentAny)
+					_retryInterval = Mathf.Min(_retryInterval * 1.5f, RetryIntervalMax);
 			}
 		}
 
@@ -64,6 +79,8 @@ namespace ONI_MP.Networking.Components
 			_initialRequestSent = false;
 			_nextInitialRequestTime = Time.unscaledTime + InitialRequestDelay;
 			_lastRetryTime = 0f;
+			_retryInterval = RetryIntervalBase;
+			_lastRequestTime.Clear();
 		}
 
 		private bool RequestVisibleAnimations(bool includeAllVisible)
@@ -73,7 +90,8 @@ namespace ONI_MP.Networking.Components
 			if (!WorldStateSyncer.TryGetLocalViewport(out var viewport, 2))
 				return false;
 
-			var requestedNetIds = new HashSet<int>();
+			float now = Time.unscaledTime;
+			var requestedNetIds = new List<int>();
 			foreach (var syncer in AnimSyncCoordinator.GetTrackedSyncers())
 			{
 				if (syncer == null || !syncer.IsVisibleIn(viewport))
@@ -84,7 +102,16 @@ namespace ONI_MP.Networking.Components
 				if (syncer.NetId == 0)
 					continue;
 
+				// Per-NetId cooldown: do not re-request the same entity faster than
+				// the host can reasonably respond; avoids flood when responses drop.
+				if (_lastRequestTime.TryGetValue(syncer.NetId, out var last) && now - last < PerNetIdCooldown)
+					continue;
+
 				requestedNetIds.Add(syncer.NetId);
+				_lastRequestTime[syncer.NetId] = now;
+
+				if (requestedNetIds.Count >= MaxNetIdsPerPacket)
+					break;
 			}
 
 			if (requestedNetIds.Count > 0)
@@ -94,9 +121,10 @@ namespace ONI_MP.Networking.Components
 					RequesterId = MultiplayerSession.LocalUserID,
 					NetIds = [.. requestedNetIds]
 				}, PacketSendMode.Unreliable);
+				return true;
 			}
 
-			return true;
+			return false;
 		}
 	}
 }
