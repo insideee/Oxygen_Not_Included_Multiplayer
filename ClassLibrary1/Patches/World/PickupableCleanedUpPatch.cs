@@ -19,11 +19,10 @@ namespace ONI_MP.Patches.World
 					return;
 
 				var identity = __instance.GetComponent<NetworkIdentity>();
-				if (identity == null)
+				if (identity == null || identity.NetId == 0)
 					return;
 
 				PacketSender.SendToAllClients(new GroundItemPickedUpPacket { NetId = identity.NetId });
-				DebugConsole.Log($"[PickupableCleanedUpPatch] Sent GroundItemPickedUpPacket NetId={identity.NetId}");
 			}
 			catch (System.Exception ex)
 			{

@@ -36,12 +36,8 @@ namespace ONI_MP.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			if (!NetworkIdentityRegistry.TryGetComponent<Pickupable>(NetId, out var pickupable))
-			{
-				DebugConsole.LogWarning($"[GroundItemPickedUpPacket] NetId {NetId} not found -- already removed or not tracked");
 				return;
-			}
 
-			DebugConsole.Log($"[GroundItemPickedUpPacket] Removing ground item NetId={NetId} on client");
 			Util.KDestroyGameObject(pickupable.gameObject);
 		}
 	}
