@@ -332,7 +332,7 @@ namespace ONI_MP.Networking
 
 			if (MultiplayerSession.IsHost)
 				SendToAllClients(packet);
-			else if (packet is IBulkablePacket)
+			else if (packet is IBulkablePacket && packet is not IClientRelayable)
 				SendToHost(packet);
 			else
 				SendToHost(new HostBroadcastPacket(packet, MultiplayerSession.LocalUserID));

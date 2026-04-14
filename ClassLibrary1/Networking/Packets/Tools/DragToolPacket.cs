@@ -7,14 +7,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using HarmonyLib;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 using UnityEngine;
 using static STRINGS.INPUT_BINDINGS;
 
 namespace ONI_MP.Networking.Packets.Tools
 {
-	public abstract class DragToolPacket : IPacket
+	public abstract class DragToolPacket : IPacket, IBulkablePacket, IClientRelayable
 	{
+		// Per-cell OnDragTool fires once per frame during a drag. Batching
+		// coalesces the fan-out leg (host -> N clients) and the host-receive
+		// side so a 60-cell drag becomes ~1 bulk message instead of 60.
+		public int MaxPackSize => 64;
+		public uint IntervalMs => 100;
+
 		/// <summary>
 		/// Gets a value indicating whether incoming messages are currently being processed.
 		/// Use in patches to prevent recursion when applying tool changes.
