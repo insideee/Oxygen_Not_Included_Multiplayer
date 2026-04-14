@@ -76,6 +76,8 @@ namespace ONI_MP.Networking
 
 		static Dictionary<int, PacketUpdateRunner> UpdateRunners = [];
 		static Dictionary<object, Dictionary<int, List<byte[]>>> WaitingBulkPacketsPerReceiver = [];
+		// Running byte total per (receiver, packetId) so LAN capacity checks stay O(1) per append.
+		static Dictionary<object, Dictionary<int, int>> WaitingBulkPacketBytes = [];
 		public static void DispatchPendingBulkPackets()
 		{
 			using var _ = Profiler.Scope();
@@ -107,6 +109,8 @@ namespace ONI_MP.Networking
 			//}
 			SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), PacketSendMode.ReliableImmediate);
 			pendingPackets.Clear();
+			if (WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
+				byteTotals[packetId] = 0;
 		}
 		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
@@ -130,18 +134,28 @@ namespace ONI_MP.Networking
 				bulkPacketWaitingData[packetId] = new List<byte[]>(maxPacketNumberPerPacket);
 				pendingPackets = bulkPacketWaitingData[packetId];
 			}
-			pendingPackets.Add(packet.SerializeToByteArray());
+			var serialized = packet.SerializeToByteArray();
+			pendingPackets.Add(serialized);
+
+			if (!WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
+			{
+				byteTotals = [];
+				WaitingBulkPacketBytes[conn] = byteTotals;
+			}
+			if (!byteTotals.TryGetValue(packetId, out var runningTotal))
+				runningTotal = 4; // +4 for the packetId int header
+			runningTotal += serialized.Length;
+			byteTotals[packetId] = runningTotal;
 
 			bool atCapacity = false;
 			if (NetworkConfig.IsLanConfig())
 			{
 				float maxSize = MAX_PACKET_SIZE_LAN * 1024f;
-                int totalSize = pendingPackets.Sum(p => p.Length) + 4; // +4 for the packetId int
-                if (totalSize >= maxSize)
-                {
-                    atCapacity = true;
-                }
-            }
+				if (runningTotal >= maxSize)
+				{
+					atCapacity = true;
+				}
+			}
 
 			if (pendingPackets.Count >= maxPacketNumberPerPacket || atCapacity)
 			{
