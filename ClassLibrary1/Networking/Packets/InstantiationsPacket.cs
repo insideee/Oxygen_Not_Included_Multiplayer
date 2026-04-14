@@ -10,6 +10,9 @@ namespace ONI_MP.Networking.Packets
 {
 	public class InstantiationsPacket : IPacket
 	{
+		private const int MaxCompressedBytes = 16 * 1024 * 1024;
+		private const int MaxInstantiationCount = 8192;
+
 		public List<InstantiationEntry> Entries = new List<InstantiationEntry>();
 
 		public struct InstantiationEntry
@@ -56,6 +59,12 @@ namespace ONI_MP.Networking.Packets
 			using var _ = Profiler.Scope();
 
 			int compressedLength = r.ReadInt32();
+			if (compressedLength < 0 || compressedLength > MaxCompressedBytes)
+			{
+				DebugConsole.LogWarning($"[InstantiationsPacket] Invalid compressed payload length: {compressedLength}");
+				Entries = [];
+				return;
+			}
 			byte[] compressedData = r.ReadBytes(compressedLength);
 
 			using (var ms = new MemoryStream(compressedData))
@@ -65,6 +74,12 @@ namespace ONI_MP.Networking.Packets
 					using (var tempReader = new BinaryReader(deflate))
 					{
 						int count = tempReader.ReadInt32();
+						if (count < 0 || count > MaxInstantiationCount)
+						{
+							DebugConsole.LogWarning($"[InstantiationsPacket] Invalid instantiation count: {count}");
+							Entries = [];
+							return;
+						}
 						Entries = new List<InstantiationEntry>(count);
 
 						for (int i = 0; i < count; i++)

@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using HarmonyLib;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using Steamworks;
@@ -12,7 +13,7 @@ public class CaptureToolPacket : IPacket
     private ulong        SenderId = MultiplayerSession.LocalUserID;
     private Vector2         Min;
     private Vector2         Max;
-    private PrioritySetting Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
+    private PrioritySetting Priority;
 
     public CaptureToolPacket()
     {
@@ -29,6 +30,9 @@ public class CaptureToolPacket : IPacket
     public void Serialize(BinaryWriter writer)
     {
         using var _ = Profiler.Scope();
+
+        if (ToolMenu.Instance?.PriorityScreen != null)
+            Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
         writer.Write(SenderId);
         writer.Write(Min);
@@ -51,13 +55,25 @@ public class CaptureToolPacket : IPacket
     {
         using var _ = Profiler.Scope();
 
-        Traverse        lastSelectedPriority = Traverse.Create(ToolMenu.Instance.PriorityScreen).Field("lastSelectedPriority");
+        var priorityScreen = ToolMenu.Instance?.PriorityScreen;
+        if (priorityScreen == null)
+        {
+            DebugConsole.LogWarning("[CaptureToolPacket] PriorityScreen is null in OnDispatched; applying capture without overriding priority");
+            CaptureTool.MarkForCapture(Min, Max, true);
+            return;
+        }
+
+        Traverse        lastSelectedPriority = Traverse.Create(priorityScreen).Field("lastSelectedPriority");
         PrioritySetting prioritySetting      = lastSelectedPriority.GetValue<PrioritySetting>();
 
         lastSelectedPriority.SetValue(Priority);
-
-        CaptureTool.MarkForCapture(Min, Max, true);
-
-        lastSelectedPriority.SetValue(prioritySetting);
+        try
+        {
+            CaptureTool.MarkForCapture(Min, Max, true);
+        }
+        finally
+        {
+            lastSelectedPriority.SetValue(prioritySetting);
+        }
     }
 }

@@ -19,39 +19,31 @@ namespace ONI_MP.Networking
 {
 	public static class PacketSender
 	{
-		/// <summary>
-		/// Sth in this is broken
-		/// </summary>
 		private class PacketUpdateRunner
 		{
-			int PacketId;
-			float UpdateIntervalS;
-
-			Dictionary<HSteamNetConnection, float> LastDispatchTime = [];
+			private readonly float _updateIntervalS;
+			private readonly Dictionary<object, float> _lastDispatchTime = [];
 
 			public PacketUpdateRunner(int packetId, uint updateInterval)
 			{
-				PacketId = packetId;
-				UpdateIntervalS = updateInterval/1000f;
+				_updateIntervalS = updateInterval / 1000f;
 			}
-			public bool CanDispatchNext(HSteamNetConnection connection)
+
+			public bool CanDispatchNext(object connection)
 			{
 				using var _ = Profiler.Scope();
 
-				var currentTime = Time.unscaledTime;
-
-				if (!LastDispatchTime.ContainsKey(connection))
-				{
-					LastDispatchTime[connection] = currentTime;
+				if (!_lastDispatchTime.TryGetValue(connection, out var lastDispatchTime))
 					return true;
-				}
 
-				if (LastDispatchTime[connection] + UpdateIntervalS > currentTime)
-				{
-					LastDispatchTime[connection] = currentTime;
-					return true;
-				}
-				return false;
+				return Time.unscaledTime - lastDispatchTime >= _updateIntervalS;
+			}
+
+			public void RecordDispatch(object connection)
+			{
+				using var _ = Profiler.Scope();
+
+				_lastDispatchTime[connection] = Time.unscaledTime;
 			}
 		}
 
@@ -82,13 +74,23 @@ namespace ONI_MP.Networking
 		{
 			using var _ = Profiler.Scope();
 
+			var emptyConnections = new List<object>();
 			foreach (var kvp in WaitingBulkPacketsPerReceiver)
 			{
 				var conn = kvp.Key;
-				foreach (var packetId in kvp.Value.Keys)
+				foreach (var packetId in kvp.Value.Keys.ToList())
 				{
 					DispatchPendingBulkPacketOfType(conn, packetId, true);
 				}
+
+				if (kvp.Value.Count == 0)
+					emptyConnections.Add(conn);
+			}
+
+			foreach (var conn in emptyConnections)
+			{
+				WaitingBulkPacketsPerReceiver.Remove(conn);
+				WaitingBulkPacketBytes.Remove(conn);
 			}
 		}
 
@@ -102,15 +104,18 @@ namespace ONI_MP.Networking
 			{
 				return;
 			}
-			//if (intervalRun)
-			//{
-			//	if (!UpdateRunners[packetId].CanDispatchNext(conn))
-			//		return;
-			//}
+			if (intervalRun && UpdateRunners.TryGetValue(packetId, out var intervalRunner) && !intervalRunner.CanDispatchNext(conn))
+				return;
 			SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), PacketSendMode.ReliableImmediate);
 			pendingPackets.Clear();
+			allPendingPackets.Remove(packetId);
 			if (WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
+			{
 				byteTotals[packetId] = 0;
+				byteTotals.Remove(packetId);
+			}
+			if (UpdateRunners.TryGetValue(packetId, out var runner))
+				runner.RecordDispatch(conn);
 		}
 		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{

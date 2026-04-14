@@ -10,7 +10,8 @@ namespace ONI_MP.Networking.Components
 {
 	internal class BulkPacketMonitor : MonoBehaviour
 	{
-		private float updateIntervalSeconds = 0.2f;
+		// Poll often enough for 100ms bulk packets while leaving pacing to PacketSender.
+		private float updateIntervalSeconds = 0.1f;
 		private float updateTimer;
 
 		public void LateUpdate()

@@ -15,7 +15,7 @@ namespace ONI_MP.Networking.Packets.Tools.Dig
 
         private int             Cell;
         private int             AnimationDelay;
-        private PrioritySetting Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
+        private PrioritySetting Priority;
 
         public DiggablePacket()
         {
@@ -32,6 +32,9 @@ namespace ONI_MP.Networking.Packets.Tools.Dig
         public void Serialize(BinaryWriter writer)
         {
             using var _ = Profiler.Scope();
+
+            if (ToolMenu.Instance?.PriorityScreen != null)
+                Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
             writer.Write(Cell);
             writer.Write(AnimationDelay);
@@ -52,9 +55,16 @@ namespace ONI_MP.Networking.Packets.Tools.Dig
         {
             using var _ = Profiler.Scope();
 
+            GameObject game_object;
             ProcessingIncoming = true;
-            GameObject game_object = DigTool.PlaceDig(Cell, AnimationDelay);
-            ProcessingIncoming = false;
+            try
+            {
+                game_object = DigTool.PlaceDig(Cell, AnimationDelay);
+            }
+            finally
+            {
+                ProcessingIncoming = false;
+            }
 
             Prioritizable prioritizable = game_object?.GetComponent<Prioritizable>();
             prioritizable?.SetMasterPriority(Priority);

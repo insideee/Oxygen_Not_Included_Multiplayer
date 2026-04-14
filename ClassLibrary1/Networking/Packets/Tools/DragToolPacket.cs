@@ -42,11 +42,14 @@ namespace ONI_MP.Networking.Packets.Tools
 		HashSet<string> currentFilterTargets = [];
 		public Vector3 downPos, upPos;
 		public int cell, distFromOrigin;
-		private PrioritySetting Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
+		private PrioritySetting Priority;
 
 		public virtual void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
+
+			if (ToolMenu.Instance?.PriorityScreen != null)
+				Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
 			if(ToolInstance is FilteredDragTool filteredToolInstance)
 				StoreFilterData(filteredToolInstance);
@@ -112,6 +115,7 @@ namespace ONI_MP.Networking.Packets.Tools
 			if (ToolInstance == null)
 			{
 				DebugConsole.LogWarning("[FilteredDragToolPacket] ToolInstance is null in OnDispatched");
+				return;
 			}
 
 			FilteredDragTool filteredToolInstance = ToolInstance as FilteredDragTool;
@@ -123,35 +127,51 @@ namespace ONI_MP.Networking.Packets.Tools
 				ApplyFilterData(filteredToolInstance, currentFilterTargets);
 			}
 
-			Traverse        lastSelectedPriority = Traverse.Create(ToolMenu.Instance.PriorityScreen).Field("lastSelectedPriority");
-			PrioritySetting prioritySetting      = lastSelectedPriority.GetValue<PrioritySetting>();
-
-			lastSelectedPriority.SetValue(Priority);
-
-			ProcessingIncoming = true;
-			switch (ToolMode)
+			var priorityScreen = ToolMenu.Instance?.PriorityScreen;
+			Traverse lastSelectedPriority = null;
+			PrioritySetting prioritySetting = default;
+			bool hasPriorityScreen = priorityScreen != null;
+			if (hasPriorityScreen)
 			{
-				case DragToolMode.OnDragTool:
-					DebugConsole.Log($"[FilteredDragToolPacket] OnDispatched OnDragTool - cell: {cell}, distFromOrigin: {distFromOrigin}");
-					ToolInstance.OnDragTool(cell, distFromOrigin);
-					break;
-				case DragToolMode.OnDragComplete:
-					Vector3 cachedDownPos = ToolInstance.downPos;
-					ToolInstance.downPos = downPos;
-					DebugConsole.Log($"[FilteredDragToolPacket] OnDispatched OnDragComplete - startPos: {downPos}, endPos: {upPos}");
-					ToolInstance.OnDragComplete(downPos, upPos);
-					ToolInstance.downPos = cachedDownPos;
-					break;
-				default:
-					DebugConsole.LogWarning("[FilteredDragToolPacket] OnDispatched called with invalid ToolMode");
-					break;
+				lastSelectedPriority = Traverse.Create(priorityScreen).Field("lastSelectedPriority");
+				prioritySetting = lastSelectedPriority.GetValue<PrioritySetting>();
+				lastSelectedPriority.SetValue(Priority);
 			}
-			ProcessingIncoming = false;
+			else
+			{
+				DebugConsole.LogWarning("[FilteredDragToolPacket] PriorityScreen is null in OnDispatched; applying tool without overriding priority");
+			}
 
-			lastSelectedPriority.SetValue(prioritySetting);
+			Vector3 cachedDownPos = ToolInstance.downPos;
+			ProcessingIncoming = true;
+			try
+			{
+				switch (ToolMode)
+				{
+					case DragToolMode.OnDragTool:
+						DebugConsole.Log($"[FilteredDragToolPacket] OnDispatched OnDragTool - cell: {cell}, distFromOrigin: {distFromOrigin}");
+						ToolInstance.OnDragTool(cell, distFromOrigin);
+						break;
+					case DragToolMode.OnDragComplete:
+						ToolInstance.downPos = downPos;
+						DebugConsole.Log($"[FilteredDragToolPacket] OnDispatched OnDragComplete - startPos: {downPos}, endPos: {upPos}");
+						ToolInstance.OnDragComplete(downPos, upPos);
+						break;
+					default:
+						DebugConsole.LogWarning("[FilteredDragToolPacket] OnDispatched called with invalid ToolMode");
+						break;
+				}
+			}
+			finally
+			{
+				ToolInstance.downPos = cachedDownPos;
+				ProcessingIncoming = false;
+				if (hasPriorityScreen)
+					lastSelectedPriority.SetValue(prioritySetting);
 
-			if (isFilteredTool)
-				ApplyFilterData(filteredToolInstance, cachedFilters);
+				if (isFilteredTool)
+					ApplyFilterData(filteredToolInstance, cachedFilters);
+			}
 		}
 		public void ApplyFilterData(FilteredDragTool tool, HashSet<string> targets)
 		{

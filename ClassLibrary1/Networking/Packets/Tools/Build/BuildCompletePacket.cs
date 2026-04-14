@@ -10,6 +10,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 {
 	public class BuildCompletePacket : IPacket
 	{
+		private const int MaxMaterialTagCount = 64;
+
 		public int Cell;
 		public string PrefabID;
 		public Orientation Orientation;
@@ -55,6 +57,13 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			FacadeID = reader.ReadString();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxMaterialTagCount)
+			{
+				DebugConsole.LogWarning($"[BuildCompletePacket] Invalid material tag count: {count}");
+				Cell = Grid.InvalidCell;
+				MaterialTags = [];
+				return;
+			}
 			MaterialTags = new List<string>(count);
 			for (int i = 0; i < count; i++)
 				MaterialTags.Add(reader.ReadString());
