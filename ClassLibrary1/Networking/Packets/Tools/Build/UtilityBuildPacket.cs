@@ -13,6 +13,9 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 {
 	public class UtilityBuildPacket : IPacket
 	{
+		private const int MaxPathNodeCount = 8192;
+		private const int MaxMaterialTagCount = 64;
+
 		/// <summary>
 		/// Gets a value indicating whether incoming messages are currently being processed.
 		/// Use in patches to prevent recursion when applying tool changes.
@@ -98,6 +101,13 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			//DebugConsole.Log("[UtilityBuildPacket] FacadeID read successfully: " + FacadeID);
 			//DebugConsole.Log("[UtilityBuildPacket] Reading path Count...");
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxPathNodeCount)
+			{
+				DebugConsole.LogWarning($"[UtilityBuildPacket] Invalid path node count: {count}");
+				path = [];
+				MaterialTags = [];
+				return;
+			}
 			//DebugConsole.Log("[UtilityBuildPacket] path Count read successfully: " + count);
 			path = new List<BaseUtilityBuildTool.PathNode>(count);
 			for (int i = 0; i < count; i++)
@@ -107,6 +117,13 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			}
 			//DebugConsole.Log("[UtilityBuildPacket] Reading matCount...");
 			int matCount = reader.ReadInt32();
+			if (matCount < 0 || matCount > MaxMaterialTagCount)
+			{
+				DebugConsole.LogWarning($"[UtilityBuildPacket] Invalid material tag count: {matCount}");
+				path = [];
+				MaterialTags = [];
+				return;
+			}
 			//DebugConsole.Log("[UtilityBuildPacket] matCount read successfully: " + matCount);
 			MaterialTags = new List<string>(matCount);
 			if (matCount > 0)
@@ -173,21 +190,26 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			tool.conduitMgr = conduitManagerHaver.GetNetworkManager();
 
 			ProcessingIncoming = true;
-			DebugConsole.Log($"[UtilityBuildPacket] Building path with {path.Count} nodes of prefab {def.PrefabID}");
-			tool.BuildPath();
-
-			foreach (BaseUtilityBuildTool.PathNode node in path)
+			try
 			{
-				GameObject    gameObject    = Grid.Objects[node.cell, (int)def.TileLayer];
-				Prioritizable prioritizable = gameObject?.GetComponent<Prioritizable>();
-				prioritizable?.SetMasterPriority(Priority);
-			}
-			ProcessingIncoming = false;
+				DebugConsole.Log($"[UtilityBuildPacket] Building path with {path.Count} nodes of prefab {def.PrefabID}");
+				tool.BuildPath();
 
-			tool.def = cachedDef;
-			tool.path = cachedPath;
-			tool.selectedElements = cachedMaterials;
-			tool.conduitMgr = cachedMgr;
+				foreach (BaseUtilityBuildTool.PathNode node in path)
+				{
+					GameObject    gameObject    = Grid.Objects[node.cell, (int)def.TileLayer];
+					Prioritizable prioritizable = gameObject?.GetComponent<Prioritizable>();
+					prioritizable?.SetMasterPriority(Priority);
+				}
+			}
+			finally
+			{
+				ProcessingIncoming = false;
+				tool.def = cachedDef;
+				tool.path = cachedPath;
+				tool.selectedElements = cachedMaterials;
+				tool.conduitMgr = cachedMgr;
+			}
 		}
 	}
 }

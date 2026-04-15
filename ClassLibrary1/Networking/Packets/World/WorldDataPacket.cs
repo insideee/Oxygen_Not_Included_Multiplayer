@@ -10,6 +10,9 @@ namespace ONI_MP.Networking.Packets.World
 {
 	public class WorldDataPacket : IPacket
 	{
+		private const int MaxCompressedBytes = 32 * 1024 * 1024;
+		private const int MaxChunkCount = 16384;
+
 		public List<ChunkData> Chunks = new List<ChunkData>();
 
 		public void Serialize(BinaryWriter writer)
@@ -47,6 +50,12 @@ namespace ONI_MP.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int compressedLength = reader.ReadInt32();
+			if (compressedLength < 0 || compressedLength > MaxCompressedBytes)
+			{
+				DebugConsole.LogWarning($"[WorldDataPacket] Invalid compressed payload length: {compressedLength}");
+				Chunks = [];
+				return;
+			}
 			byte[] compressedData = reader.ReadBytes(compressedLength);
 
 			using (var memoryStream = new MemoryStream(compressedData))
@@ -54,6 +63,12 @@ namespace ONI_MP.Networking.Packets.World
 			using (var decompressReader = new BinaryReader(decompressStream))
 			{
 				int count = decompressReader.ReadInt32();
+				if (count < 0 || count > MaxChunkCount)
+				{
+					DebugConsole.LogWarning($"[WorldDataPacket] Invalid chunk count: {count}");
+					Chunks = [];
+					return;
+				}
 				Chunks = new List<ChunkData>(count);
 				for (int i = 0; i < count; i++)
 				{

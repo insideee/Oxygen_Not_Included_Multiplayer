@@ -33,6 +33,8 @@ namespace ONI_MP.DebugTools
 		public static SyncMetric Structures = new SyncMetric { Name = "Structures", Interval = 0.5f };
 		public static SyncMetric VitalStats = new SyncMetric { Name = "VitalStats", Interval = 1f };
 		public static SyncMetric Plants = new SyncMetric { Name = "Plants", Interval = 5f };
+		// DragTool: bulk flush observability (count = cells batched in last flush, bytes = payload).
+		public static SyncMetric DragTool = new SyncMetric { Name = "DragTool", Interval = 0.1f };
 		// AnimSync: host-side per-entity visible-path sends (activity-triggered + interval).
 		// LastItemCount = recipients in last send; LastPacketBytes = snapshot bytes.
 		public static SyncMetric AnimSync = new SyncMetric { Name = "AnimSync", Interval = 5f };
@@ -60,6 +62,7 @@ namespace ONI_MP.DebugTools
 		{
 			Gas, Digging, Chores, Research,
 			Buildings, Structures, VitalStats, Plants,
+			DragTool
 			AnimSync, AnimResyncRequest
 		};
 	}

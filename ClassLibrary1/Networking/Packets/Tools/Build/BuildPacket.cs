@@ -11,6 +11,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 {
     public class BuildPacket : IPacket
     {
+        private const int MaxMaterialTagCount = 64;
+
         private string          PrefabID;
         private int             Cell;
         private Orientation     Orientation;
@@ -57,6 +59,13 @@ namespace ONI_MP.Networking.Packets.Tools.Build
             Cell        = reader.ReadInt32();
             Orientation = (Orientation)reader.ReadInt32();
             int count = reader.ReadInt32();
+            if (count < 0 || count > MaxMaterialTagCount)
+            {
+                DebugConsole.LogWarning($"[BuildPacket] Invalid material tag count: {count}");
+                Cell = Grid.InvalidCell;
+                MaterialTags = [];
+                return;
+            }
             MaterialTags = new List<string>();
             for (int i = 0; i < count; i++)
                 MaterialTags.Add(reader.ReadString());

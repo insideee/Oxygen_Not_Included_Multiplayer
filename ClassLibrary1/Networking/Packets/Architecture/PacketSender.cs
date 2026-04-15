@@ -19,39 +19,31 @@ namespace ONI_MP.Networking
 {
 	public static class PacketSender
 	{
-		/// <summary>
-		/// Sth in this is broken
-		/// </summary>
 		private class PacketUpdateRunner
 		{
-			int PacketId;
-			float UpdateIntervalS;
-
-			Dictionary<HSteamNetConnection, float> LastDispatchTime = [];
+			private readonly float _updateIntervalS;
+			private readonly Dictionary<object, float> _lastDispatchTime = [];
 
 			public PacketUpdateRunner(int packetId, uint updateInterval)
 			{
-				PacketId = packetId;
-				UpdateIntervalS = updateInterval/1000f;
+				_updateIntervalS = updateInterval / 1000f;
 			}
-			public bool CanDispatchNext(HSteamNetConnection connection)
+
+			public bool CanDispatchNext(object connection)
 			{
 				using var _ = Profiler.Scope();
 
-				var currentTime = Time.unscaledTime;
-
-				if (!LastDispatchTime.ContainsKey(connection))
-				{
-					LastDispatchTime[connection] = currentTime;
+				if (!_lastDispatchTime.TryGetValue(connection, out var lastDispatchTime))
 					return true;
-				}
 
-				if (LastDispatchTime[connection] + UpdateIntervalS > currentTime)
-				{
-					LastDispatchTime[connection] = currentTime;
-					return true;
-				}
-				return false;
+				return Time.unscaledTime - lastDispatchTime >= _updateIntervalS;
+			}
+
+			public void RecordDispatch(object connection)
+			{
+				using var _ = Profiler.Scope();
+
+				_lastDispatchTime[connection] = Time.unscaledTime;
 			}
 		}
 
@@ -76,17 +68,32 @@ namespace ONI_MP.Networking
 
 		static Dictionary<int, PacketUpdateRunner> UpdateRunners = [];
 		static Dictionary<object, Dictionary<int, List<byte[]>>> WaitingBulkPacketsPerReceiver = [];
+		// Running byte total per (receiver, packetId) so LAN capacity checks stay O(1) per append.
+		static Dictionary<object, Dictionary<int, int>> WaitingBulkPacketBytes = [];
+		// Packet ids that belong to DragToolPacket subclasses — tagged lazily on first append
+		// so the bulk flush site can record SyncStats.DragTool without needing the typed instance.
+		static HashSet<int> DragToolBulkPacketIds = new HashSet<int>();
 		public static void DispatchPendingBulkPackets()
 		{
 			using var _ = Profiler.Scope();
 
+			var emptyConnections = new List<object>();
 			foreach (var kvp in WaitingBulkPacketsPerReceiver)
 			{
 				var conn = kvp.Key;
-				foreach (var packetId in kvp.Value.Keys)
+				foreach (var packetId in kvp.Value.Keys.ToList())
 				{
 					DispatchPendingBulkPacketOfType(conn, packetId, true);
 				}
+
+				if (kvp.Value.Count == 0)
+					emptyConnections.Add(conn);
+			}
+
+			foreach (var conn in emptyConnections)
+			{
+				WaitingBulkPacketsPerReceiver.Remove(conn);
+				WaitingBulkPacketBytes.Remove(conn);
 			}
 		}
 
@@ -100,13 +107,28 @@ namespace ONI_MP.Networking
 			{
 				return;
 			}
-			//if (intervalRun)
-			//{
-			//	if (!UpdateRunners[packetId].CanDispatchNext(conn))
-			//		return;
-			//}
+			if (intervalRun && UpdateRunners.TryGetValue(packetId, out var intervalRunner) && !intervalRunner.CanDispatchNext(conn))
+				return;
+
+			int flushCount = pendingPackets.Count;
+			int flushBytes = 0;
+			WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals);
+			if (byteTotals != null && byteTotals.TryGetValue(packetId, out var bt))
+				flushBytes = bt;
+			var swFlush = System.Diagnostics.Stopwatch.StartNew();
 			SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), PacketSendMode.ReliableImmediate);
+			swFlush.Stop();
 			pendingPackets.Clear();
+			allPendingPackets.Remove(packetId);
+			if (byteTotals != null)
+			{
+				byteTotals[packetId] = 0;
+				byteTotals.Remove(packetId);
+			}
+			if (UpdateRunners.TryGetValue(packetId, out var runner))
+				runner.RecordDispatch(conn);
+			if (DragToolBulkPacketIds.Contains(packetId))
+				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
 		}
 		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
@@ -114,6 +136,9 @@ namespace ONI_MP.Networking
 
 			int packetId = PacketRegistry.GetPacketId(packet);
 			int maxPacketNumberPerPacket = bp.MaxPackSize;
+
+			if (packet is ONI_MP.Networking.Packets.Tools.DragToolPacket)
+				DragToolBulkPacketIds.Add(packetId);
 
 			if (!UpdateRunners.ContainsKey(packetId))
 			{
@@ -130,18 +155,28 @@ namespace ONI_MP.Networking
 				bulkPacketWaitingData[packetId] = new List<byte[]>(maxPacketNumberPerPacket);
 				pendingPackets = bulkPacketWaitingData[packetId];
 			}
-			pendingPackets.Add(packet.SerializeToByteArray());
+			var serialized = packet.SerializeToByteArray();
+			pendingPackets.Add(serialized);
+
+			if (!WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
+			{
+				byteTotals = [];
+				WaitingBulkPacketBytes[conn] = byteTotals;
+			}
+			if (!byteTotals.TryGetValue(packetId, out var runningTotal))
+				runningTotal = 4; // +4 for the packetId int header
+			runningTotal += serialized.Length;
+			byteTotals[packetId] = runningTotal;
 
 			bool atCapacity = false;
 			if (NetworkConfig.IsLanConfig())
 			{
 				float maxSize = MAX_PACKET_SIZE_LAN * 1024f;
-                int totalSize = pendingPackets.Sum(p => p.Length) + 4; // +4 for the packetId int
-                if (totalSize >= maxSize)
-                {
-                    atCapacity = true;
-                }
-            }
+				if (runningTotal >= maxSize)
+				{
+					atCapacity = true;
+				}
+			}
 
 			if (pendingPackets.Count >= maxPacketNumberPerPacket || atCapacity)
 			{
@@ -354,7 +389,7 @@ namespace ONI_MP.Networking
 
 			if (MultiplayerSession.IsHost)
 				SendToAllClients(packet);
-			else if (packet is IBulkablePacket)
+			else if (packet is IBulkablePacket && packet is not IClientRelayable)
 				SendToHost(packet);
 			else
 				SendToHost(new HostBroadcastPacket(packet, MultiplayerSession.LocalUserID));
