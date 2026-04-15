@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Diagnostics;
+using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking.Packets.Animation;
 using Shared.Profiling;
@@ -116,11 +118,21 @@ namespace ONI_MP.Networking.Components
 
 			if (requestedNetIds.Count > 0)
 			{
-				PacketSender.SendToHost(new AnimResyncRequestPacket
+				var sw = Stopwatch.StartNew();
+				var packet = new AnimResyncRequestPacket
 				{
 					RequesterId = MultiplayerSession.LocalUserID,
 					NetIds = [.. requestedNetIds]
-				}, PacketSendMode.Unreliable);
+				};
+				int bytes = 0;
+				try { bytes = packet.SerializeToByteArray().Length; } catch { }
+				PacketSender.SendToHost(packet, PacketSendMode.Unreliable);
+				sw.Stop();
+
+				// Record as item=NetIds, bytes=packet size, duration=current retry interval (ms).
+				// Interval-in-ms lives in LastDurationMs so log-grep sees backoff value without new fields.
+				SyncStats.RecordSync(SyncStats.AnimResyncRequest, requestedNetIds.Count, bytes, _retryInterval * 1000f);
+				DebugConsole.Log($"[AnimResyncRequest] netIds={requestedNetIds.Count} bytes={bytes} cap={MaxNetIdsPerPacket} retryInterval={_retryInterval:F1}s initial={includeAllVisible}");
 				return true;
 			}
 
