@@ -171,6 +171,23 @@ namespace ONI_MP.Misc
 				return false;
 			return true;
 		}
+		/// <summary>
+		/// Gate for host-originated broadcasts that key off NetId on the wire.
+		/// True only if: in session, is host, behavior alive, attached GameObject has a
+		/// NetworkIdentity with NetId != 0. Rejects ghost/preview/particle GameObjects
+		/// that use shared Klei components (e.g. SymbolOverrideController) but are not
+		/// registered network entities — sending for them would be wasted bandwidth
+		/// (receiver lookup would fail anyway).
+		/// </summary>
+		public static bool IsHostEntityWithNetId(MonoBehaviour behavior, out int netId)
+		{
+			using var _ = Profiler.Scope();
+			netId = 0;
+			if (!IsHostEntity(behavior))
+				return false;
+			netId = behavior.GetNetId();
+			return netId != 0;
+		}
 		public static bool IsHostEntity(MonoBehaviour behavior)
 		{
 			using var _ = Profiler.Scope();

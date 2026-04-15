@@ -52,6 +52,8 @@ namespace ONI_MP.Networking.Components
 			using var _ = Profiler.Scope();
 
 			AnimSyncCoordinator.Unregister(this);
+			if (networkIdentity != null && networkIdentity.NetId != 0)
+				PlayAnimPacket.ForgetNetId(networkIdentity.NetId);
 			base.OnCleanUp();
 		}
 
