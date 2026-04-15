@@ -62,7 +62,7 @@ namespace ONI_MP.DebugTools
 		{
 			Gas, Digging, Chores, Research,
 			Buildings, Structures, VitalStats, Plants,
-			DragTool
+			DragTool,
 			AnimSync, AnimResyncRequest
 		};
 	}
