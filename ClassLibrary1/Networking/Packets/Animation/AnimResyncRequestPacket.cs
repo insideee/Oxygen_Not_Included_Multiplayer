@@ -1,4 +1,5 @@
 using System.IO;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
@@ -7,6 +8,8 @@ namespace ONI_MP.Networking.Packets.Animation
 {
 	internal class AnimResyncRequestPacket : IPacket
 	{
+		private const int MaxNetIds = 4096;
+
 		public ulong RequesterId;
 		public int[] NetIds = [];
 
@@ -26,6 +29,12 @@ namespace ONI_MP.Networking.Packets.Animation
 
 			RequesterId = reader.ReadUInt64();
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxNetIds)
+			{
+				DebugConsole.LogWarning($"[AnimResyncRequestPacket] Invalid NetId count {count}, dropping request");
+				NetIds = [];
+				return;
+			}
 			NetIds = new int[count];
 			for (int i = 0; i < count; i++)
 				NetIds[i] = reader.ReadInt32();

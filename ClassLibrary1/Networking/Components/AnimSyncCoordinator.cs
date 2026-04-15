@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Diagnostics;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Animation;
 using Shared.Profiling;
 using Steamworks;
@@ -12,15 +14,15 @@ namespace ONI_MP.Networking.Components
 		{
 			public bool HasObservedState;
 			public int LastActivityKey;
-			public float LastChangedTime;
 			public float LastSentTime;
 		}
 
 		private const float TickInterval = 0.2f;
 		private const int ShardCount = 5;
-		private const float RecentActivityWindow = 3f;
 		private const float VisibleSyncInterval = 5f;
-		private const float ActiveSyncInterval = 10f;
+		// Minimum gap between activity-triggered sends per entity. Bounds bandwidth
+		// when activity-key quantization (speed / operational bits) flaps at tick rate.
+		private const float ActivityChangeMinInterval = 2f;
 		private const int VisibilityMargin = 2;
 		private const int PendingUnreliableBackoffBytes = 32768;
 		private const long QueueTimeBackoffUsec = 100000;
@@ -34,6 +36,13 @@ namespace ONI_MP.Networking.Components
 		private readonly HashSet<ulong> _visibleRecipients = [];
 		private float _tickTimer;
 		private int _currentShard;
+
+		// Observability counters (reset on log flush every ~30s).
+		private int _sendsActivity;
+		private int _sendsInterval;
+		private int _skipsOffscreen;
+		private float _lastStatsLogTime;
+		private const float StatsLogInterval = 30f;
 
 		private void Awake()
 		{
@@ -145,6 +154,8 @@ namespace ONI_MP.Networking.Components
 			}
 
 			_currentShard = (_currentShard + 1) % ShardCount;
+
+			MaybeLogStats(Time.unscaledTime);
 		}
 
 		private void ProcessPendingRequests()
@@ -174,7 +185,9 @@ namespace ONI_MP.Networking.Components
 					if (!syncer.TryBuildSnapshot(out var packet, out var activityKey))
 						continue;
 
-					PacketSender.SendToPlayer(kvp.Key, packet, PacketSendMode.Unreliable);
+					// Reliable: resync responses are small and low-frequency; a dropped
+					// response otherwise cascades into another client retry loop.
+					PacketSender.SendToPlayer(kvp.Key, packet, PacketSendMode.Reliable);
 					UpdateObservedState(syncer, activityKey, now);
 					_syncStates[syncer].LastSentTime = now;
 				}
@@ -200,28 +213,54 @@ namespace ONI_MP.Networking.Components
 			bool activityChanged = UpdateObservedState(syncer, activityKey, now);
 			bool visible = TryCollectVisibleRecipients(syncer);
 
-			if (activityChanged && visible)
+			// No viewer, no send. Off-screen fan-out to all clients wasted bandwidth
+			// across distant viewports; request-based resync covers join-in-progress,
+			// and the next shard visit resyncs when a client re-enters the cell.
+			if (!visible)
 			{
-				SendSnapshotToVisibleClients(packet, syncer, now);
+				_skipsOffscreen++;
 				return;
 			}
 
 			var syncState = _syncStates[syncer];
-			bool recentlyActive = now - syncState.LastChangedTime <= RecentActivityWindow;
-			if (!visible && !recentlyActive)
-				return;
 
-			float interval = visible ? VisibleSyncInterval : ActiveSyncInterval;
+			// Activity-triggered fast path, gated by a minimum interval so that
+			// quantization noise in activityKey cannot drive 1/shard-tick sends.
+			if (activityChanged && now - syncState.LastSentTime >= ActivityChangeMinInterval)
+			{
+				SendSnapshotToVisibleClients(packet, syncer, now);
+				_sendsActivity++;
+				return;
+			}
+
+			float interval = VisibleSyncInterval;
 			if (applyBackoff)
 				interval *= 2f;
 
 			if (now - syncState.LastSentTime < interval)
 				return;
 
-			if (visible)
-				SendSnapshotToVisibleClients(packet, syncer, now);
-			else
-				SendSnapshotToAllClients(packet, syncer, now);
+			SendSnapshotToVisibleClients(packet, syncer, now);
+			_sendsInterval++;
+		}
+
+		private void MaybeLogStats(float now)
+		{
+			using var _ = Profiler.Scope();
+
+			if (_lastStatsLogTime == 0f)
+			{
+				_lastStatsLogTime = now;
+				return;
+			}
+			if (now - _lastStatsLogTime < StatsLogInterval)
+				return;
+
+			DebugConsole.Log($"[AnimSync] window={StatsLogInterval:F0}s sends(activity)={_sendsActivity} sends(interval)={_sendsInterval} offscreen-skipped={_skipsOffscreen} tracked={TrackedSyncers.Count}");
+			_sendsActivity = 0;
+			_sendsInterval = 0;
+			_skipsOffscreen = 0;
+			_lastStatsLogTime = now;
 		}
 
 		private bool UpdateObservedState(AnimStateSyncer syncer, int activityKey, float now)
@@ -239,7 +278,6 @@ namespace ONI_MP.Networking.Components
 			{
 				syncState.HasObservedState = true;
 				syncState.LastActivityKey = activityKey;
-				syncState.LastChangedTime = now;
 			}
 
 			return activityChanged;
@@ -261,18 +299,15 @@ namespace ONI_MP.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
+			var sw = Stopwatch.StartNew();
+			int bytes = 0;
+			try { bytes = packet.SerializeToByteArray().Length; } catch { }
 			foreach (var recipient in _visibleRecipients)
 				PacketSender.SendToPlayer(recipient, packet, PacketSendMode.Unreliable);
 
 			_syncStates[syncer].LastSentTime = now;
-		}
-
-		private void SendSnapshotToAllClients(AnimSyncPacket packet, AnimStateSyncer syncer, float now)
-		{
-			using var _ = Profiler.Scope();
-
-			PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-			_syncStates[syncer].LastSentTime = now;
+			sw.Stop();
+			SyncStats.RecordSync(SyncStats.AnimSync, _visibleRecipients.Count, bytes, (float)sw.Elapsed.TotalMilliseconds);
 		}
 
 		private bool ShouldBackOffForSteamQueue()

@@ -19,16 +19,22 @@ namespace ONI_MP.Patches.Critters
 			public static void Postfix(GameObject __result)
 			{
 				using var _ = Profiler.Scope();
+				try
+				{
+					if (__result == null)
+						return;
 
-				if (__result == null)
-					return;
+					if (!AnimSyncEligibility.IsAnimatedCritter(__result))
+						return;
 
-				if (!AnimSyncEligibility.IsAnimatedCritter(__result))
-					return;
-
-				__result.AddOrGet<EntityPositionHandler>();
-				__result.AddOrGet<NetworkIdentity>();
-				__result.AddOrGet<AnimStateSyncer>();
+					__result.AddOrGet<EntityPositionHandler>();
+					__result.AddOrGet<NetworkIdentity>();
+					__result.AddOrGet<AnimStateSyncer>();
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogError($"[EntityTemplatesPatch.ExtendEntityToBasicCreature_Patch] {ex}");
+				}
 			}
 		}
 	}

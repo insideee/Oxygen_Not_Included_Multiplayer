@@ -35,6 +35,12 @@ namespace ONI_MP.DebugTools
 		public static SyncMetric Plants = new SyncMetric { Name = "Plants", Interval = 5f };
 		// DragTool: bulk flush observability (count = cells batched in last flush, bytes = payload).
 		public static SyncMetric DragTool = new SyncMetric { Name = "DragTool", Interval = 0.1f };
+		// AnimSync: host-side per-entity visible-path sends (activity-triggered + interval).
+		// LastItemCount = recipients in last send; LastPacketBytes = snapshot bytes.
+		public static SyncMetric AnimSync = new SyncMetric { Name = "AnimSync", Interval = 5f };
+		// AnimResyncRequest: client-side resync-request packets (count = NetIds requested,
+		// bytes = packet size, durationMs = current retry interval in ms for easy log read).
+		public static SyncMetric AnimResyncRequest = new SyncMetric { Name = "AnimResyncReq", Interval = 5f };
 
 		/// <summary>
 		/// Updates a metric after a sync operation.
@@ -57,6 +63,7 @@ namespace ONI_MP.DebugTools
 			Gas, Digging, Chores, Research,
 			Buildings, Structures, VitalStats, Plants,
 			DragTool
+			AnimSync, AnimResyncRequest
 		};
 	}
 }

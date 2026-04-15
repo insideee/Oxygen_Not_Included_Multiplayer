@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using ONI_MP.DebugTools;
 using ONI_MP.Networking.Components;
 using System;
 using System.Collections.Generic;
@@ -18,11 +19,17 @@ namespace ONI_MP.Patches.World.Buildings
             public static void Postfix(BuildingComplete __instance)
             {
                 using var _ = Profiler.Scope();
+                try
+                {
+                    __instance.gameObject.AddOrGet<NetworkIdentity>();
 
-                __instance.gameObject.AddOrGet<NetworkIdentity>();
-
-				if (AnimSyncEligibility.IsAnimatedBuilding(__instance.gameObject))
-					__instance.gameObject.AddOrGet<AnimStateSyncer>();
+                    if (AnimSyncEligibility.IsAnimatedBuilding(__instance.gameObject))
+                        __instance.gameObject.AddOrGet<AnimStateSyncer>();
+                }
+                catch (System.Exception ex)
+                {
+                    DebugConsole.LogError($"[BuildingComplete_OnPrefabInit_Patch] {ex}");
+                }
             }
         }
 	}
