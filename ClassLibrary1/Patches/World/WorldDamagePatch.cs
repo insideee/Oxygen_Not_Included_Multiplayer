@@ -52,21 +52,44 @@ namespace ONI_MP.Patches.World
 
 				if (MultiplayerSession.IsHost)
 				{
-					Vector3 pos = Grid.CellToPos(cell, CellAlignment.RandomInternal, Grid.SceneLayer.Ore);
-
-					var packet = new WorldDamageSpawnResourcePacket
+					// Bug-D: host-side NetId=0 race. SpawnResource should have triggered
+					// OnSpawn→RegisterIdentity synchronously, but some prefabs lack a
+					// NetworkIdentity, or Grid.WidthInCells==0 during world-load skips
+					// registration. Force a registration retry, then skip the send if
+					// we still don't have a valid NetId — otherwise clients receive a
+					// packet keyed to 0 and every subsequent pickup/update never matches.
+					if (networkIdentity == null)
 					{
-						NetId = networkIdentity.NetId,
-						Position = pos,
-						Mass = mass * 0.5f,
-						Temperature = temperature,
-						ElementIndex = element_idx,
-						DiseaseIndex = disease_idx,
-						DiseaseCount = disease_count
-					};
+						DebugConsole.LogWarning($"[WorldDamagePatch] spawned ore '{gameObject.name}' has no NetworkIdentity; skipping sync");
+					}
+					else
+					{
+						if (networkIdentity.NetId == 0)
+							networkIdentity.RegisterIdentity();
 
-					PacketSender.SendToAllClients(packet);
-					DebugConsole.Log("Sent spawn resource packet with netid " + networkIdentity.NetId);
+						if (networkIdentity.NetId == 0)
+						{
+							DebugConsole.LogWarning($"[WorldDamagePatch] NetId still 0 after RegisterIdentity for '{gameObject.name}'; skipping spawn sync (client will be short one item)");
+						}
+						else
+						{
+							Vector3 pos = Grid.CellToPos(cell, CellAlignment.RandomInternal, Grid.SceneLayer.Ore);
+
+							var packet = new WorldDamageSpawnResourcePacket
+							{
+								NetId = networkIdentity.NetId,
+								Position = pos,
+								Mass = mass * 0.5f,
+								Temperature = temperature,
+								ElementIndex = element_idx,
+								DiseaseIndex = disease_idx,
+								DiseaseCount = disease_count
+							};
+
+							PacketSender.SendToAllClients(packet);
+							DebugConsole.Log("Sent spawn resource packet with netid " + networkIdentity.NetId);
+						}
+					}
 				}
 			}
 		}
