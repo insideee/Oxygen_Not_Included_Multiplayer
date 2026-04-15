@@ -38,6 +38,7 @@ namespace ONI_MP.Patches.ToolPatches.Deconstruct
 					NetId = identity.NetId,
 					Action = BuildingActionKind.QueueDeconstruct,
 				});
+				DebugConsole.Log($"[BuildingAction] send NetId={identity.NetId} kind=QueueDeconstruct src=QueuePatch");
 			}
 			catch (System.Exception ex)
 			{

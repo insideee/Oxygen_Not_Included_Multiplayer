@@ -58,6 +58,7 @@ namespace ONI_MP.Networking.Packets.Tools
 				ProcessingIncoming = true;
 				try
 				{
+					DebugConsole.Log($"[BuildingAction] apply NetId={NetId} kind={Action} name={go.name}");
 					switch (Action)
 					{
 						case BuildingActionKind.QueueDeconstruct:

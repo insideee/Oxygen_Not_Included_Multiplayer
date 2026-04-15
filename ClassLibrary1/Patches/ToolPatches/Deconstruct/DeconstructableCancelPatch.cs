@@ -34,6 +34,7 @@ namespace ONI_MP.Patches.ToolPatches.Deconstruct
 					NetId = identity.NetId,
 					Action = BuildingActionKind.CancelDeconstruct,
 				});
+				DebugConsole.Log($"[BuildingAction] send NetId={identity.NetId} kind=CancelDeconstruct src=CancelPatch");
 			}
 			catch (System.Exception ex)
 			{
