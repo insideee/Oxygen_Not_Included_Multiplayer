@@ -36,8 +36,9 @@ namespace ONI_MP.DebugTools
                         continue;
 
                     var name = attr.Name ?? $"{type.Name}.{method.Name}";
+                    var category = attr.Category ?? "Uncategorized";
 
-                    _tests.Add(new UnitTest(name, attr.Category, method));
+                    _tests.Add(new UnitTest(name, category, method));
                 }
             }
         }
