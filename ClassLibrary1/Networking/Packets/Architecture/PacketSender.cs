@@ -70,6 +70,9 @@ namespace ONI_MP.Networking
 		static Dictionary<object, Dictionary<int, List<byte[]>>> WaitingBulkPacketsPerReceiver = [];
 		// Running byte total per (receiver, packetId) so LAN capacity checks stay O(1) per append.
 		static Dictionary<object, Dictionary<int, int>> WaitingBulkPacketBytes = [];
+		// Packet ids that belong to DragToolPacket subclasses — tagged lazily on first append
+		// so the bulk flush site can record SyncStats.DragTool without needing the typed instance.
+		static HashSet<int> DragToolBulkPacketIds = new HashSet<int>();
 		public static void DispatchPendingBulkPackets()
 		{
 			using var _ = Profiler.Scope();
@@ -106,16 +109,26 @@ namespace ONI_MP.Networking
 			}
 			if (intervalRun && UpdateRunners.TryGetValue(packetId, out var intervalRunner) && !intervalRunner.CanDispatchNext(conn))
 				return;
+
+			int flushCount = pendingPackets.Count;
+			int flushBytes = 0;
+			WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals);
+			if (byteTotals != null && byteTotals.TryGetValue(packetId, out var bt))
+				flushBytes = bt;
+			var swFlush = System.Diagnostics.Stopwatch.StartNew();
 			SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), PacketSendMode.ReliableImmediate);
+			swFlush.Stop();
 			pendingPackets.Clear();
 			allPendingPackets.Remove(packetId);
-			if (WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
+			if (byteTotals != null)
 			{
 				byteTotals[packetId] = 0;
 				byteTotals.Remove(packetId);
 			}
 			if (UpdateRunners.TryGetValue(packetId, out var runner))
 				runner.RecordDispatch(conn);
+			if (DragToolBulkPacketIds.Contains(packetId))
+				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
 		}
 		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
@@ -123,6 +136,9 @@ namespace ONI_MP.Networking
 
 			int packetId = PacketRegistry.GetPacketId(packet);
 			int maxPacketNumberPerPacket = bp.MaxPackSize;
+
+			if (packet is ONI_MP.Networking.Packets.Tools.DragToolPacket)
+				DragToolBulkPacketIds.Add(packetId);
 
 			if (!UpdateRunners.ContainsKey(packetId))
 			{

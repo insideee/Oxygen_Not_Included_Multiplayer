@@ -28,6 +28,8 @@ namespace ONI_MP.Networking.Packets.Tools
 		/// </summary>
 		public static bool ProcessingIncoming { get; private set; } = false;
 
+		private static long _restoredCount;
+
 		public enum DragToolMode
 		{
 			Invalid = -1,
@@ -144,6 +146,7 @@ namespace ONI_MP.Networking.Packets.Tools
 
 			Vector3 cachedDownPos = ToolInstance.downPos;
 			ProcessingIncoming = true;
+			bool completed = false;
 			try
 			{
 				switch (ToolMode)
@@ -161,11 +164,20 @@ namespace ONI_MP.Networking.Packets.Tools
 						DebugConsole.LogWarning("[FilteredDragToolPacket] OnDispatched called with invalid ToolMode");
 						break;
 				}
+				completed = true;
 			}
 			finally
 			{
 				ToolInstance.downPos = cachedDownPos;
+				// Always restore; otherwise a throw inside the tool's OnDragTool leaves the
+				// receiver-side guard stuck at true and every subsequent drag is silently dropped.
 				ProcessingIncoming = false;
+				if (!completed)
+				{
+					long n = System.Threading.Interlocked.Increment(ref _restoredCount);
+					if (n <= 5 || n % 100 == 0)
+						DebugConsole.LogWarning($"[DragTool] ProcessingIncoming restored after exception #{n}");
+				}
 				if (hasPriorityScreen)
 					lastSelectedPriority.SetValue(prioritySetting);
 
