@@ -72,6 +72,18 @@ public class PlayAnimPacket : IPacket
 
 	private static readonly Dictionary<int, long> LastIdUpdates = [];
 
+	// Invariant #6: bound long-lived collections. Prune per-entity entry on cleanup,
+	// clear the whole map on session teardown via NetworkIdentityRegistry.Clear().
+	public static void ForgetNetId(int netId)
+	{
+		LastIdUpdates.Remove(netId);
+	}
+
+	public static void ClearState()
+	{
+		LastIdUpdates.Clear();
+	}
+
 	public void OnDispatched()
 	{
 		using var _ = Profiler.Scope();
@@ -117,22 +129,40 @@ public class PlayAnimPacket : IPacket
 		if (MultipleAnims)
 		{
 			KAnimControllerBase_Patches.AllowAnims();
-			kbac.Play(AnimHashes, Mode);
-			KAnimControllerBase_Patches.ForbidAnims();
+			try
+			{
+				kbac.Play(AnimHashes, Mode);
+			}
+			finally
+			{
+				KAnimControllerBase_Patches.ForbidAnims();
+			}
 		}
 		else
 		{
 			if (IsQueue)
 			{
 				KAnimControllerBase_Patches.AllowAnims();
-				kbac.Queue(AnimHashes.FirstOrDefault(), Mode, Speed, TimeOffset);
-				KAnimControllerBase_Patches.ForbidAnims();
+				try
+				{
+					kbac.Queue(AnimHashes.FirstOrDefault(), Mode, Speed, TimeOffset);
+				}
+				finally
+				{
+					KAnimControllerBase_Patches.ForbidAnims();
+				}
 			}
 			else
 			{
 				KAnimControllerBase_Patches.AllowAnims();
-				kbac.Play(AnimHashes.FirstOrDefault(), Mode, Speed, TimeOffset);
-				KAnimControllerBase_Patches.ForbidAnims();
+				try
+				{
+					kbac.Play(AnimHashes.FirstOrDefault(), Mode, Speed, TimeOffset);
+				}
+				finally
+				{
+					KAnimControllerBase_Patches.ForbidAnims();
+				}
 			}
 
 		}

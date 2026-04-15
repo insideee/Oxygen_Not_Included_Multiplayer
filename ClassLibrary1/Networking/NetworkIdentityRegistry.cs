@@ -119,6 +119,7 @@ namespace ONI_MP.Networking
 			identities.Clear();
 			_lookupFailCount = 0;
 			GroundItemPickedUpPacket.ClearPending();
+			PlayAnimPacket.ClearState();
 		}
 
 		public static IEnumerable<NetworkIdentity> AllIdentities => identities.Values;
