@@ -228,6 +228,28 @@ namespace ONI_MP.Networking
 			SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
 		}
 
+		// Throttle counter for per-connection send failures so a transport storm
+		// does not flood the log. First 5 errors are logged in full, then 1/100 after.
+		private static long _sendErrorCount;
+
+		private static void TrySendToConnection(MultiplayerPlayer player, IPacket packet, PacketSendMode sendType)
+		{
+			try
+			{
+				SendToConnection(player.Connection, packet, sendType);
+			}
+			catch (Exception ex)
+			{
+				// A throw from the transport layer (e.g. Riptide pendingMessages key collision)
+				// must not skip remaining connections in the broadcast. Log-and-continue.
+				long n = ++_sendErrorCount;
+				if (n <= 5 || n % 100 == 0)
+				{
+					DebugConsole.LogError($"[PacketSender] Send to player {player.PlayerId} failed (packet={packet.GetType().Name}, #{n}): {ex}");
+				}
+			}
+		}
+
 		/// Original single-exclude overload
 		public static void SendToAll(IPacket packet, ulong? exclude = null, PacketSendMode sendType = PacketSendMode.Reliable)
 		{
@@ -239,7 +261,7 @@ namespace ONI_MP.Networking
 					continue;
 
 				if (CanBroadcastTo(player))
-					SendToConnection(player.Connection, packet, sendType);
+					TrySendToConnection(player, packet, sendType);
 			}
 		}
 
@@ -265,7 +287,7 @@ namespace ONI_MP.Networking
 					continue;
 
 				if (CanBroadcastTo(player))
-					SendToConnection(player.Connection, packet, sendType);
+					TrySendToConnection(player, packet, sendType);
 			}
 		}
 
