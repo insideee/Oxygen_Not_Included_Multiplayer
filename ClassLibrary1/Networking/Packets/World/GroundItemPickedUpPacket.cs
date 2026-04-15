@@ -28,7 +28,9 @@ namespace ONI_MP.Networking.Packets.World
 		public static void ClearPending()
 		{
 			using var _ = Profiler.Scope();
+			int n = PendingPickupNetIds.Count;
 			PendingPickupNetIds.Clear();
+			DebugConsole.Log($"[PendingPickup] cleared count={n}");
 		}
 
 		public void Serialize(BinaryWriter writer)
