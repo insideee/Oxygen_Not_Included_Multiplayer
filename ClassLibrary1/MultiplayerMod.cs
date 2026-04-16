@@ -236,6 +236,7 @@ namespace ONI_MP
 
 #if DEBUG
 			UnitTestRegistry.DiscoverTests();
+			ProtocolCompatibility.BypassChecks = true; // If DEBUG bypass by default
 #endif
 			// For now default to the steam transport
 			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);

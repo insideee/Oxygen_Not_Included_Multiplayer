@@ -6,7 +6,7 @@ namespace ONI_MP.Networking
 	internal static class ProtocolCompatibility
 	{
 
-		public static bool BypassChecks = true;
+		public static bool BypassChecks = false;
 		public const int CurrentProtocolVersion = 1;
 
 		private static int? _packetFingerprint;
